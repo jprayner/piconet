@@ -15,3 +15,5 @@ target_link_libraries(piconet pico_stdlib hardware_pwm)
 # create map/bin/hex file etc.
 pico_add_extra_outputs(piconet)
 
+pico_enable_stdio_usb(piconet 1)
+pico_enable_stdio_uart(piconet 0)
