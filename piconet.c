@@ -27,6 +27,7 @@ const uint GPIO_BUFF_IRQ = 14;
 
 data_dir_type data_dir = UNSPECIFIED;
 
+
 static void _set_data_dir(data_dir_type new_data_dir) {
     if (new_data_dir == data_dir) {
         return;
@@ -68,11 +69,13 @@ static uint adlc_read(uint reg) {
     // wait for low to high clock transition
     while (gpio_get(GPIO_CLK_OUT) == 0);
 
-    // wait for data to appear (max 150ns ~= 19x8ns Pico clock ticks @ 125MHz)
+    // wait for data to appear (max 150ns ~= 19x 8ns Pico clock ticks @ 125MHz)
     asm volatile(
-        "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-        "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
+         "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
+         "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
     );
+
+    gpio_put(GPIO_TMP, 1);
 
     uint result = (gpio_get_all() && (0xff << 2)) >> 2;
 
@@ -85,6 +88,8 @@ static uint adlc_read(uint reg) {
     // release chip select
     gpio_put(GPIO_BUFF_CS, 1);
 
+    gpio_put(GPIO_TMP, 0);
+
     return result;
 }
 
@@ -94,7 +99,6 @@ static void adlc_write(uint reg, uint data_val) {
 
     _set_data_dir(OUTPUT);
     gpio_put_masked(0xff << 2, data_val << 2);
-    // printf("dataval: %u\n", data_val << 2);
 
     // wait for high to low clock transition
     while (gpio_get(GPIO_CLK_OUT) == 0);
@@ -110,36 +114,6 @@ static void adlc_write(uint reg, uint data_val) {
     // wait 8ns (CS hold time is 10ns but there will be safely >2ns to detect clock transition)
     asm volatile("nop");
 
-    // wait 2.5 ADLC clock cycles to ensure latched data is available
-    //    ADLC clock period @1MHz == 1us == 1000ns
-    //    => must wait 2500ns
-    //    pico clock period @125MHz == 8ns
-    //    => must wait 2500/8 = 313 pico clock cycles
-    
-    // wait 15 CPU cycles
-    // asm volatile(
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n" // 304
-    //     "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n" // 9
-    // );
-
     // release chip select
     gpio_put(GPIO_BUFF_CS, 1);
 }
@@ -148,8 +122,8 @@ int main() {
 
     stdio_init_all();
 
-    // sleep_ms(5000); // give client a chance to reconnect
-    // printf("Hello, world!\n");
+    sleep_ms(5000); // give client a chance to reconnect
+    printf("Hello, world!\n");
 
     // use USB clock to get 1 MHz for ADLC clock
     clock_gpio_init(21, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_USB, 48);
@@ -168,6 +142,9 @@ int main() {
     gpio_init(GPIO_BUFF_IRQ);
     gpio_set_dir(GPIO_BUFF_IRQ, GPIO_OUT);
 
+    gpio_init(GPIO_TMP);
+    gpio_set_dir(GPIO_TMP, GPIO_OUT);
+
     // init GPIO inputs    
     gpio_init(GPIO_BUFF_IRQ);
     gpio_set_dir(GPIO_BUFF_IRQ, GPIO_IN);
@@ -178,12 +155,11 @@ int main() {
     gpio_put(LED_PIN, 1);
 
     while (true) {
-        adlc_write(0, 0);
-        sleep_ms(10);
-        adlc_write(0, 1);
-        adlc_write(0, 2);
-        adlc_write(0, 3);
+        uint volatile result = adlc_read(0);
+        //printf("Read value: %u\n", result);
+        //sleep_ms(500);
     }
+
     // // make GPIO_TMP follow clock (around 150ns lag)
     // gpio_init(GPIO_TMP);
     // gpio_set_dir(GPIO_TMP, GPIO_OUT);
