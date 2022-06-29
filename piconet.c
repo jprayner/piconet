@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include "pico/stdlib.h"
+#include "pico/util/queue.h"
+#include "pico/multicore.h"
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 
@@ -27,6 +29,18 @@ const uint GPIO_BUFF_IRQ = 14;
 
 data_dir_type data_dir = UNSPECIFIED;
 
+const uint CMD_ADLC_READ = 1;
+const uint CMD_ADLC_WRITE = 2;
+
+typedef struct
+{
+    uint command;
+    uint reg;
+    uint data_val;
+} command_t;
+
+queue_t call_queue;
+queue_t results_queue;
 
 static void _set_data_dir(data_dir_type new_data_dir) {
     if (new_data_dir == data_dir) {
@@ -77,8 +91,8 @@ static uint adlc_read(uint reg) {
 
     gpio_put(GPIO_TMP, 1);
 
-    uint result = (gpio_get_all() && (0xff << 2)) >> 2;
-
+    uint result = (gpio_get_all() & (0xff << 2)) >> 2;
+    
     // wait for high to low clock transition
     while (gpio_get(GPIO_CLK_OUT) == 1);
 
@@ -118,6 +132,27 @@ static void adlc_write(uint reg, uint data_val) {
     gpio_put(GPIO_BUFF_CS, 1);
 }
 
+void core1_entry() {
+    while (1) {
+        command_t entry;
+        queue_remove_blocking(&call_queue, &entry);
+
+        switch (entry.command) {
+            case (CMD_ADLC_READ): {
+                uint result = adlc_read(entry.reg);
+                queue_add_blocking(&results_queue, &result);
+                break;
+            }
+            case (CMD_ADLC_WRITE): {
+                uint result = 0;
+                adlc_write(entry.reg, entry.data_val);
+                queue_add_blocking(&results_queue, &result);
+                break;
+            }
+        }
+    }
+}
+
 int main() {
 
     stdio_init_all();
@@ -154,8 +189,21 @@ int main() {
 
     gpio_put(LED_PIN, 1);
 
+    queue_init(&call_queue, sizeof(command_t), 2);
+    queue_init(&results_queue, sizeof(uint32_t), 2);
+    multicore_launch_core1(core1_entry);
+
+    uint32_t call_result;
+    command_t cmd;
+    cmd.command = CMD_ADLC_READ;
+    cmd.reg = 0;
+
     while (true) {
-        uint volatile result = adlc_read(0);
+        queue_add_blocking(&call_queue, &cmd);
+        queue_remove_blocking(&results_queue, &call_result);
+        printf("Read value: %08x\n", call_result);
+
+        // uint volatile result = adlc_read(0);
         //printf("Read value: %u\n", result);
         //sleep_ms(500);
     }

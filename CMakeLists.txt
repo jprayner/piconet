@@ -10,7 +10,7 @@ add_executable(piconet
 )
 
 # pull in common dependencies and additional pwm hardware support
-target_link_libraries(piconet pico_stdlib hardware_pwm)
+target_link_libraries(piconet pico_stdlib pico_multicore hardware_pwm)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(piconet)
