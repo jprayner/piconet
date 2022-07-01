@@ -5,6 +5,24 @@
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 
+#define STATUS_1_RDA 1
+#define STATUS_1_S2_RD_REQ 2
+#define STATUS_1_LOOP 4
+#define STATUS_1_FLAG_DET 8
+#define STATUS_1_NOT_CTS 16
+#define STATUS_1_TX_UNDERRUN 32
+#define STATUS_1_FRAME_COMPLETE 64
+#define STATUS_1_IRQ 128
+
+#define STATUS_2_ADDR_PRESENT 1
+#define STATUS_2_FRAME_VALID 2
+#define STATUS_2_INACTIVE_IDLE_RX 4
+#define STATUS_2_ABORT_RX 8
+#define STATUS_2_FCS_ERROR 16
+#define STATUS_2_NOT_DCD 32
+#define STATUS_2_RX_OVERRUN 64
+#define STATUS_2_RDA 128
+
 typedef enum { UNSPECIFIED, INPUT, OUTPUT } data_dir_type;
 
 const uint LED_PIN = 25;
@@ -27,10 +45,24 @@ const uint GPIO_BUFF_A1 = 12;
 const uint GPIO_BUFF_CS = 13;
 const uint GPIO_BUFF_IRQ = 14;
 
+const uint REG_STATUS_1 = 0;
+const uint REG_STATUS_2 = 1;
+
 data_dir_type data_dir = UNSPECIFIED;
 
 const uint CMD_ADLC_READ = 1;
 const uint CMD_ADLC_WRITE = 2;
+
+#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)  \
+  (byte & 0x80 ? '1' : '0'), \
+  (byte & 0x40 ? '1' : '0'), \
+  (byte & 0x20 ? '1' : '0'), \
+  (byte & 0x10 ? '1' : '0'), \
+  (byte & 0x08 ? '1' : '0'), \
+  (byte & 0x04 ? '1' : '0'), \
+  (byte & 0x02 ? '1' : '0'), \
+  (byte & 0x01 ? '1' : '0') 
 
 typedef struct
 {
@@ -49,16 +81,13 @@ static void _set_data_dir(data_dir_type new_data_dir) {
 
     switch (new_data_dir) {
         case (UNSPECIFIED):
-            printf("Cannot set data direction to UNSPECIFIED\n");
             break;
         case (INPUT):
-            printf("Setting data dir to INPUT\n");
             gpio_put(GPIO_BUFF_RnW, 1);
             gpio_set_dir_in_masked(0xff << 2);
             data_dir = INPUT;
             break;
         case (OUTPUT):
-            printf("Setting data dir to OUTPUT\n");
             gpio_put(GPIO_BUFF_RnW, 0);
             gpio_set_dir_out_masked(0xff << 2);
             data_dir = OUTPUT;
@@ -132,6 +161,95 @@ static void adlc_write(uint reg, uint data_val) {
     gpio_put(GPIO_BUFF_CS, 1);
 }
 
+void initADLC(){
+  // Init Control Register 1 (CR1)
+  adlc_write(0, 0b11000001); // Put TX and RX into reset, select address 2 for CR3 and 4
+//   digitalWriteDirect(PIN_D0,0); // No logical control byte
+//   digitalWriteDirect(PIN_D1,0); // 8 bit control field
+//   digitalWriteDirect(PIN_D2,0); // No auto address extend
+//   digitalWriteDirect(PIN_D3,0); // Idle mode all ones
+//   digitalWriteDirect(PIN_D4,0); // Disable Flag detect (not used in Econet)
+//   digitalWriteDirect(PIN_D5,0); // Disable Loop mode (not used in Econet)
+//   digitalWriteDirect(PIN_D6,0); // Disable active on poll (not used in Econet)
+//   digitalWriteDirect(PIN_D7,0); // Disable Loop on-line (not used in Econet)
+  adlc_write(1, 0b00000000); // Put TX and RX into reset, select address 2 for CR3 and 4
+
+  // init Control Register 4 (CR4)
+//   digitalWriteDirect(PIN_D0,0); // Flag interframe control (not important in Econet) 
+//   digitalWriteDirect(PIN_D1,1); // Set TX word length to 8 bit
+//   digitalWriteDirect(PIN_D2,1); 
+//   digitalWriteDirect(PIN_D3,1); // Set RX word length to 8 bit
+//   digitalWriteDirect(PIN_D4,1); 
+//   digitalWriteDirect(PIN_D5,0); // No transmit abort 
+//   digitalWriteDirect(PIN_D6,0); // No Extended abort (not used in Econet)
+//   digitalWriteDirect(PIN_D7,0); // Disable NRZI encoding (not used in Econet)
+  adlc_write(3, 0b00011110); // Put TX and RX into reset, select address 2 for CR3 and 4
+}
+
+void print_status1(unsigned value) {
+    printf("Status register 1: 0x%2x ", value);
+    printf("[ ");
+
+    if (value & STATUS_1_RDA) {
+        printf(" RDA");
+    }
+    if (value & STATUS_1_S2_RD_REQ) {
+        printf(" RD_REQ");
+    }
+    if (value & STATUS_1_LOOP) {
+        printf(" LOOP");
+    }
+    if (value & STATUS_1_FLAG_DET) {
+        printf(" FLAG");
+    }
+    if ((value & STATUS_1_NOT_CTS) == 0) {
+        printf(" CTS");
+    }
+    if (value & STATUS_1_TX_UNDERRUN) {
+        printf(" URUN");
+    }
+    if (value & STATUS_1_FRAME_COMPLETE) {
+        printf(" FRM_COMP");
+    }
+    if (value & STATUS_1_IRQ) {
+        printf(" IRQ");
+    }
+
+    printf(" ]\n");
+}
+
+void print_status2(unsigned value) {
+    printf("Status register 2: 0x%2x ", value);
+    printf("[ ");
+
+    if (value & STATUS_2_ADDR_PRESENT) {
+        printf(" ADDR");
+    }
+    if (value & STATUS_2_FRAME_VALID) {
+        printf(" VALID");
+    }
+    if (value & STATUS_2_INACTIVE_IDLE_RX) {
+        printf(" IDLE");
+    }
+    if (value & STATUS_2_ABORT_RX) {
+        printf(" ABRT");
+    }
+    if (value & STATUS_2_FCS_ERROR) {
+        printf(" FCS_ERR");
+    }
+    if ((value & STATUS_2_NOT_DCD) == 0) {
+        printf(" DCD");
+    }
+    if (value & STATUS_2_RX_OVERRUN) {
+        printf(" OVERRUN");
+    }
+    if (value & STATUS_2_RDA) {
+        printf(" RDA");
+    }
+
+    printf(" ]\n");
+}
+
 void core1_entry() {
     while (1) {
         command_t entry;
@@ -193,19 +311,67 @@ int main() {
     queue_init(&results_queue, sizeof(uint32_t), 2);
     multicore_launch_core1(core1_entry);
 
+    initADLC();
+
     uint32_t call_result;
     command_t cmd;
+    cmd.data_val = 0;
     cmd.command = CMD_ADLC_READ;
-    cmd.reg = 0;
-
     while (true) {
+        // cmd.data_val = 0;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+        // cmd.data_val = 1;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+        // cmd.data_val = 2;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+        // cmd.data_val = 3;
+
+        //
+        //
+        //
+
+        cmd.reg = REG_STATUS_1;
         queue_add_blocking(&call_queue, &cmd);
         queue_remove_blocking(&results_queue, &call_result);
-        printf("Read value: %08x\n", call_result);
+        print_status1(call_result);
 
-        // uint volatile result = adlc_read(0);
-        //printf("Read value: %u\n", result);
-        //sleep_ms(500);
+        cmd.reg = REG_STATUS_2;
+        queue_add_blocking(&call_queue, &cmd);
+        queue_remove_blocking(&results_queue, &call_result);
+        print_status2(call_result);
+
+        //
+        //
+        //
+
+        // cmd.reg = 1;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+
+        // cmd.reg = 2;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+
+        // cmd.reg = 3;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+
+        // sleep_ms(500);
+
+        //
+        //
+        //
+
+        // cmd.reg = REG_STATUS_1;
+        // queue_add_blocking(&call_queue, &cmd);
+        // queue_remove_blocking(&results_queue, &call_result);
+        // printf("Read value: "BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(call_result));
+        // printf("\n");
+        // print_status2(call_result);
+        sleep_ms(500);
     }
 
     // // make GPIO_TMP follow clock (around 150ns lag)
