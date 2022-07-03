@@ -28,7 +28,7 @@ typedef enum { UNSPECIFIED, INPUT, OUTPUT } data_dir_type;
 const uint LED_PIN = 25;
 
 const uint GPIO_CLK_OUT = 21;
-const uint GPIO_TMP = 18; // used to test sampling clock out pin
+const uint GPIO_TMP = 15; // used to test sampling clock out pin
 
 const uint GPIO_DATA_0 = 2;
 const uint GPIO_DATA_1 = 3;
@@ -47,6 +47,9 @@ const uint GPIO_BUFF_IRQ = 14;
 
 const uint REG_STATUS_1 = 0;
 const uint REG_STATUS_2 = 1;
+const uint REG_CONTROL_1 = 0;
+const uint REG_CONTROL_2 = 1;
+const uint REG_FIFO = 2;
 
 data_dir_type data_dir = UNSPECIFIED;
 
@@ -112,13 +115,13 @@ static uint adlc_read(uint reg) {
     // wait for low to high clock transition
     while (gpio_get(GPIO_CLK_OUT) == 0);
 
-    // wait for data to appear (max 150ns ~= 19x 8ns Pico clock ticks @ 125MHz)
+    // wait for data to appear (max 150ns) — this delay found to achieve this through measurement
     asm volatile(
          "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
-         "nop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\nnop\n"
+         "nop\n"
     );
 
-    gpio_put(GPIO_TMP, 1);
+    // gpio_put(GPIO_TMP, 1);
 
     uint result = (gpio_get_all() & (0xff << 2)) >> 2;
     
@@ -131,7 +134,7 @@ static uint adlc_read(uint reg) {
     // release chip select
     gpio_put(GPIO_BUFF_CS, 1);
 
-    gpio_put(GPIO_TMP, 0);
+    // gpio_put(GPIO_TMP, 0);
 
     return result;
 }
@@ -161,9 +164,9 @@ static void adlc_write(uint reg, uint data_val) {
     gpio_put(GPIO_BUFF_CS, 1);
 }
 
-void initADLC(){
+void adlc_init() {
   // Init Control Register 1 (CR1)
-  adlc_write(0, 0b11000001); // Put TX and RX into reset, select address 2 for CR3 and 4
+  adlc_write(0, 0b11000001);
 //   digitalWriteDirect(PIN_D0,0); // No logical control byte
 //   digitalWriteDirect(PIN_D1,0); // 8 bit control field
 //   digitalWriteDirect(PIN_D2,0); // No auto address extend
@@ -172,7 +175,7 @@ void initADLC(){
 //   digitalWriteDirect(PIN_D5,0); // Disable Loop mode (not used in Econet)
 //   digitalWriteDirect(PIN_D6,0); // Disable active on poll (not used in Econet)
 //   digitalWriteDirect(PIN_D7,0); // Disable Loop on-line (not used in Econet)
-  adlc_write(1, 0b00000000); // Put TX and RX into reset, select address 2 for CR3 and 4
+  adlc_write(1, 0b00000000);
 
   // init Control Register 4 (CR4)
 //   digitalWriteDirect(PIN_D0,0); // Flag interframe control (not important in Econet) 
@@ -183,7 +186,12 @@ void initADLC(){
 //   digitalWriteDirect(PIN_D5,0); // No transmit abort 
 //   digitalWriteDirect(PIN_D6,0); // No Extended abort (not used in Econet)
 //   digitalWriteDirect(PIN_D7,0); // Disable NRZI encoding (not used in Econet)
-  adlc_write(3, 0b00011110); // Put TX and RX into reset, select address 2 for CR3 and 4
+  adlc_write(3, 0b00011110);
+}
+
+void adlc_irq_reset() {
+  adlc_write(0, 0b00000010); // Enable RX interrupts, select address 1
+  adlc_write(1, 0b01100001); // Clear RX and TX status, prioritise status 
 }
 
 void print_status1(unsigned value) {
@@ -279,7 +287,7 @@ int main() {
     printf("Hello, world!\n");
 
     // use USB clock to get 1 MHz for ADLC clock
-    clock_gpio_init(21, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_USB, 48);
+    clock_gpio_init(21, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_USB, 24);
 
     // init GPIO outputs
     gpio_init(LED_PIN);
@@ -311,13 +319,19 @@ int main() {
     queue_init(&results_queue, sizeof(uint32_t), 2);
     multicore_launch_core1(core1_entry);
 
-    initADLC();
+    adlc_init();
+    adlc_irq_reset();
 
     uint32_t call_result;
     command_t cmd;
     cmd.data_val = 0;
     cmd.command = CMD_ADLC_READ;
     while (true) {
+
+        //adlc_read(0);
+        //adlc_write(0, 0);
+        // adlc_write(0, 0);
+        // adlc_write(0, 0xff);
         // cmd.data_val = 0;
         // queue_add_blocking(&call_queue, &cmd);
         // queue_remove_blocking(&results_queue, &call_result);
@@ -343,6 +357,8 @@ int main() {
         queue_remove_blocking(&results_queue, &call_result);
         print_status2(call_result);
 
+        printf("IRQ: %u\n", gpio_get(GPIO_BUFF_IRQ));
+
         //
         //
         //
@@ -359,7 +375,7 @@ int main() {
         // queue_add_blocking(&call_queue, &cmd);
         // queue_remove_blocking(&results_queue, &call_result);
 
-        // sleep_ms(500);
+        sleep_ms(500);
 
         //
         //
@@ -371,7 +387,8 @@ int main() {
         // printf("Read value: "BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(call_result));
         // printf("\n");
         // print_status2(call_result);
-        sleep_ms(500);
+
+        // sleep_ms(500);
     }
 
     // // make GPIO_TMP follow clock (around 150ns lag)
