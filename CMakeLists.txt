@@ -7,6 +7,9 @@ set(CMAKE_CXX_STANDARD 17)
 pico_sdk_init()
 add_executable(piconet
     piconet.c
+    econet.c
+    adlc.c
+    util.c
 )
 
 # pull in common dependencies and additional pwm hardware support
