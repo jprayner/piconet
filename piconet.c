@@ -98,6 +98,15 @@ void print_status2(uint value) {
     printf(" ]\n");
 }
 
+static void frame_dump(uint *data, size_t len) {
+    int i;
+    for (i = 0; i < len; i++) {
+        printf("%02x ", data[i]);
+    }
+    printf("\n");
+}
+
+
 void core1_entry() {
     command_t cmd;
 
@@ -142,19 +151,24 @@ int main() {
                 case PICONET_RX_EVENT: {
                     switch (event.rxEvent.type) {
                         case PICONET_RX_RESULT_ERROR :
+                            /*
                             printf("Error %u\n", event.rxEvent.error.type);
                             print_status1(event.rxEvent.error.sr1);
                             print_status2(event.rxEvent.error.sr2);
                             printf("\n");
+                            */
                             break;
                         case PICONET_RX_RESULT_BROADCAST :
-                            printf("Received broadcast\n");
+                            printf("BCAST: ");
+                            frame_dump(event.rxEvent.detail.buffer, event.rxEvent.detail.length);
                             break;
                         case PICONET_RX_RESULT_IMMEDIATE_OP :
-                            printf("Received immediate\n");
+                            printf("IMMED: ");
+                            frame_dump(event.rxEvent.detail.buffer, event.rxEvent.detail.length);
                             break;
                         case PICONET_RX_RESULT_FRAME :
-                            printf("Received frame\n");
+                            printf("FRAME: ");
+                            frame_dump(event.rxEvent.detail.buffer, event.rxEvent.detail.length);
                             break;
                         default:
                             printf("WTF2 %u\n", event.rxEvent.type);
