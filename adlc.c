@@ -160,7 +160,7 @@ void adlc_init(void) {
     adlc_reset();
 
     // Init Control Register 1 (CR1)
-    adlc_write(0, 0b11000001);
+    adlc_write_cr1(0b11000001);
 //   digitalWriteDirect(PIN_D0,0); // No logical control byte
 //   digitalWriteDirect(PIN_D1,0); // 8 bit control field
 //   digitalWriteDirect(PIN_D2,0); // No auto address extend
@@ -169,7 +169,7 @@ void adlc_init(void) {
 //   digitalWriteDirect(PIN_D5,0); // Disable Loop mode (not used in Econet)
 //   digitalWriteDirect(PIN_D6,0); // Disable active on poll (not used in Econet)
 //   digitalWriteDirect(PIN_D7,0); // Disable Loop on-line (not used in Econet)
-    adlc_write(2, 0b00000000);
+    adlc_write_cr3(0b00000000);
 
   // init Control Register 4 (CR4)
 //   digitalWriteDirect(PIN_D0,0); // Flag interframe control (not important in Econet) 
@@ -180,7 +180,7 @@ void adlc_init(void) {
 //   digitalWriteDirect(PIN_D5,0); // No transmit abort 
 //   digitalWriteDirect(PIN_D6,0); // No Extended abort (not used in Econet)
 //   digitalWriteDirect(PIN_D7,0); // Disable NRZI encoding (not used in Econet)
-    adlc_write(3, 0b00011110);
+    adlc_write_cr4(3, 0b00011110);
 }
 
 void adlc_write_cr1(uint data_val) {
