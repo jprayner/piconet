@@ -25,7 +25,7 @@ void econet_init(void) {
 
 void rx_reset(void) {
     sleep_us(2); // Give the last byte a moment to drain
-    adlc_write(REG_CONTROL_2, 0b00100001); // Clear RX status, prioritise status 
+    adlc_write_cr2(0b00100001); // Clear RX status, prioritise status
 }
 
 bool wait_for_idle() {
