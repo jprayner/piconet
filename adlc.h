@@ -28,6 +28,7 @@
 #define STATUS_2_RDA              128
 
 void adlc_init(void);
+void adlc_reset(void);
 uint adlc_read(uint reg);
 void adlc_write(uint reg, uint data_val);
 void adlc_irq_reset(void);

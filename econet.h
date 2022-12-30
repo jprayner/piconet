@@ -18,6 +18,7 @@ typedef struct EconetErrorDetail
 typedef enum eEconetRxResultType {
     PICONET_RX_RESULT_NONE = 0L,
     PICONET_RX_RESULT_ERROR,
+    PICONET_RX_RESULT_SCOUT,
     PICONET_RX_RESULT_BROADCAST,
     PICONET_RX_RESULT_IMMEDIATE_OP,
     PICONET_RX_RESULT_FRAME
@@ -27,11 +28,15 @@ typedef struct EconetRxResultDetail
 {
     uint *buffer; // TODO: make byte!
     size_t length;
+    uint sr1;
+    uint sr2;
 } tEconetRxResultDetail;
 
 typedef enum eEconetTxResult {
     PICONET_TX_RESULT_OK = 0L,
-    PICONET_TX_RESULT_ERROR
+    PICONET_TX_RESULT_ERROR_MISC,
+    PICONET_TX_RESULT_ERROR_NO_ACK,
+    PICONET_TX_RESULT_ERROR_TIMEOUT
 } tEconetTxResult;
 
 typedef struct EconetRxResult
@@ -46,5 +51,6 @@ typedef struct EconetRxResult
 void econet_init(void);
 tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool immediate);
 tEconetRxResult receive(void);
+tEconetTxResult ack_scout(uint sender_station, uint sender_network, uint control_byte, uint port);
 
 #endif

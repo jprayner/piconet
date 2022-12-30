@@ -25,10 +25,24 @@ typedef struct
     };
 } event_t;
 
+typedef enum ePiconetCommandType {
+    PICONET_CMD_ACK = 0L
+} tPiconetCommandType;
+
+typedef struct AckCommand
+{
+    uint senderStation;
+    uint senderNetwork;
+    uint controlByte;
+    uint port;
+} tAckCommand;
+
 typedef struct
 {
-    uint command;
-    // TODO: other stuff
+    tPiconetCommandType type;
+    union {
+        tAckCommand ack;
+    };
 } command_t;
 
 queue_t command_queue;
@@ -98,12 +112,15 @@ void print_status2(uint value) {
     printf(" ]\n");
 }
 
-static void frame_dump(uint *data, size_t len) {
+static void frame_dump(tEconetRxResultDetail detail) {
     int i;
-    for (i = 0; i < len; i++) {
-        printf("%02x ", data[i]);
+    for (i = 0; i < detail.length; i++) {
+        printf("%02x ", detail.buffer[i]);
     }
     printf("\n");
+    print_status1(detail.sr1);
+    print_status2(detail.sr2);
+
 }
 
 
@@ -111,11 +128,22 @@ void core1_entry() {
     command_t cmd;
 
     while (1) {
-        /*
         if (queue_try_remove(&command_queue, &cmd)) {
-            // TODO: do something with cmd
+            switch (cmd.type) {
+                case PICONET_CMD_ACK: {
+                    tEconetTxResult result = ack_scout(
+                        cmd.ack.senderStation,
+                        cmd.ack.senderNetwork,
+                        cmd.ack.controlByte,
+                        cmd.ack.port);
+                    event_t txEvent;
+                    txEvent.type = PICONET_TX_EVENT;
+                    txEvent.txEvent = result;
+                    queue_add_blocking(&event_queue, &result);
+                    break;
+                }
+            }
         }
-        */
 
         tEconetRxResult rxResult = receive();
 
@@ -132,7 +160,7 @@ int main() {
     stdio_init_all();
 
     sleep_ms(5000); // give client a chance to reconnect
-    printf("Hello, world!\n");
+    printf("Hello, world 2!\n");
 
     queue_init(&command_queue, sizeof(command_t), 1);
     queue_init(&event_queue, sizeof(event_t), 1);
@@ -148,27 +176,58 @@ int main() {
         event_t event;
         if (queue_try_remove(&event_queue, &event)) {
             switch (event.type) {
+                case PICONET_TX_EVENT: {
+                    switch (event.txEvent) {
+                        case PICONET_TX_RESULT_OK:
+                            printf("TRANS: OK");
+                            break;
+                        case PICONET_TX_RESULT_ERROR_MISC:
+                            printf("TRANS: ERROR_MISC");
+                            break;
+                        case PICONET_TX_RESULT_ERROR_NO_ACK:
+                            printf("TRANS: ERROR_NO_ACK");
+                            break;
+                        case PICONET_TX_RESULT_ERROR_TIMEOUT:
+                            printf("TRANS: ERROR_TIMEOUT");
+                            break;
+                        default:
+                            printf("TRANS: WTF");
+                            break;
+                    }
+                    break;
+                }
                 case PICONET_RX_EVENT: {
                     switch (event.rxEvent.type) {
                         case PICONET_RX_RESULT_ERROR :
-                            /*
                             printf("Error %u\n", event.rxEvent.error.type);
                             print_status1(event.rxEvent.error.sr1);
                             print_status2(event.rxEvent.error.sr2);
                             printf("\n");
-                            */
+                            break;
+                        case PICONET_RX_RESULT_SCOUT :
+                            printf("SCOUT: ");
+                            frame_dump(event.rxEvent.detail);
+                            
+                            // command_t cmd;
+                            // cmd.type = PICONET_CMD_ACK;
+                            // cmd.ack.senderStation = event.rxEvent.detail.buffer[2];
+                            // cmd.ack.senderNetwork = event.rxEvent.detail.buffer[3];
+                            // cmd.ack.controlByte = event.rxEvent.detail.buffer[4];
+                            // cmd.ack.port = event.rxEvent.detail.buffer[5];
+                            // queue_add_blocking(&command_queue, &cmd);
+
                             break;
                         case PICONET_RX_RESULT_BROADCAST :
                             printf("BCAST: ");
-                            frame_dump(event.rxEvent.detail.buffer, event.rxEvent.detail.length);
+                            frame_dump(event.rxEvent.detail);
                             break;
                         case PICONET_RX_RESULT_IMMEDIATE_OP :
                             printf("IMMED: ");
-                            frame_dump(event.rxEvent.detail.buffer, event.rxEvent.detail.length);
+                            frame_dump(event.rxEvent.detail);
                             break;
                         case PICONET_RX_RESULT_FRAME :
                             printf("FRAME: ");
-                            frame_dump(event.rxEvent.detail.buffer, event.rxEvent.detail.length);
+                            frame_dump(event.rxEvent.detail);
                             break;
                         default:
                             printf("WTF2 %u\n", event.rxEvent.type);

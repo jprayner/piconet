@@ -5,7 +5,7 @@
 
 static int BUFFSIZE = 16384;
 
-uint config_Station = 170;
+uint config_Station = 2;
 uint config_Net = 0; // TODO: Not strictly speaking config, Needs a bridge discovery to fix this later on
 
 bool got_scout = false;
@@ -55,8 +55,7 @@ bool wait_for_idle() {
     return true;
 }
 
-/* TODO once looking at transmit
-
+/*
 bool checkAck(){
 
   uint theirStation = scoutBuff[2];
@@ -102,7 +101,6 @@ bool checkAck(){
 }
 */
 
-/*
 bool wait_for_ack() {
     uint statReg1, statReg2;
     bool ackResult = false, inLoop = true;
@@ -126,7 +124,10 @@ bool wait_for_ack() {
 
                 if (statReg2 & STATUS_2_ADDR_PRESENT) {
                     // Address present in FIFO, so fetch it and the rest of frame
-                    ackResult = checkAck();
+
+                    //TODO
+                    //ackResult = checkAck();
+                    ackResult = true;
                 }
                 if (statReg2 & STATUS_2_FRAME_VALID) {
                     // Frame complete - not expecting a frame here
@@ -177,24 +178,36 @@ bool wait_for_ack() {
 
     return ackResult;
 }
-*/
+
 void ack_rx() {
     // Generate an acknowledgement packet 
     uint tx_buff[4];
 
     // Build the ack frame from the data in rx buffer  
-    tx_buff[0] = rx_buff[2]; 
+    tx_buff[0] = rx_buff[2];
     tx_buff[1] = rx_buff[3];
     tx_buff[2] = rx_buff[0];
     tx_buff[3] = rx_buff[1];
 
-    if (!transmit(&tx_buff, 4, false, false, false)) {
+    if (!transmit((uint *) &tx_buff, 4, false, false, false)) {
 
     }
 
     return;
 }
 
+tEconetTxResult ack_scout(uint sender_station, uint sender_network, uint control_byte, uint port) {
+    uint tx_buff[4];
+
+    tx_buff[0] = sender_station;
+    tx_buff[1] = sender_network;
+    tx_buff[2] = control_byte;
+    tx_buff[3] = port;
+
+    return transmit((uint *) &tx_buff, 4, false, false, false);
+}
+
+//TODO: remove scout param
 tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool immediate) {
     int sr1, sr2;
     unsigned long timeOut;
@@ -206,6 +219,11 @@ tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool im
 
     while (!(adlc_read(REG_STATUS_1) & 64)) { // If we don't have TDRA, clear status until we do!  
         adlc_write(REG_CONTROL_2, 0b11100101); // Raise RTS, clear TX and RX status, flag fill and Prioritise status
+
+        if (time_ms() > timeOut) {
+            adlc_irq_reset();
+            return PICONET_TX_RESULT_ERROR_TIMEOUT;
+        }
     }
 
     for (int buffPtr = 0; buffPtr < bytes; buffPtr += 1) {
@@ -222,22 +240,17 @@ tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool im
                 // Some other error
                 //printSR1(sr1); 
                 adlc_irq_reset(); 
-                return false;
+                return PICONET_TX_RESULT_ERROR_MISC;
             }
 
             if (time_ms() > timeOut) {
-                //Serial.print("TX timeout on frame "); Serial.print(buffPtr);
                 adlc_irq_reset();
-                return false;
+                return PICONET_TX_RESULT_ERROR_TIMEOUT;
             }
         }
   
         // Now we are ready, write the byte.
-        if (scout) {
-            adlc_write(REG_FIFO, scout_buff[buffPtr]);
-        } else {
-            adlc_write(REG_FIFO, buff[buffPtr]);
-        }
+        adlc_write(REG_FIFO, buff[buffPtr]);
     } // End of for loop to tx bytes
 
     adlc_write(REG_CONTROL_2, 0b00111001); // Tell the ADLC that was the last byte, and clear flag fill modes and RTS. 
@@ -259,16 +272,14 @@ tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool im
 
     if (!getAck) {
         // If ack not expected, return now
-        return true;
+        return PICONET_TX_RESULT_OK;
     }
 
-    /*
-    TODO: do this one we have scout data available
     if (wait_for_ack()) {
-        return true;
+        return PICONET_TX_RESULT_OK;
     }
-    */
-    return false;
+
+    return PICONET_TX_RESULT_ERROR_NO_ACK;
 }
 
 tEconetRxResult read_frame(void) {
@@ -310,7 +321,7 @@ tEconetRxResult read_frame(void) {
         //    254 - global large broadcast (1020/1024 maximum)
         //    253 - local large broadcast  
         adlc_irq_reset();
-        return;
+        return result;
     }
 
     ptr = 2;
@@ -343,54 +354,66 @@ tEconetRxResult read_frame(void) {
         if (rx_buff[0] == 255 || rx_buff[0] == 0) {
             // Broadcast frame - treat specially, then drop out of receive flow
             result.type = PICONET_RX_RESULT_BROADCAST;
-            result.detail.buffer = &rx_buff;
+            result.detail.buffer = (uint *) &rx_buff;
             result.detail.length = ptr;
             return result;
             // TODO: could prolly fall-through here but let's get it working first!
         } else {
-            // Still here so a frame addressed to me - flag fill while we work out what to do with it
+            result.type = PICONET_RX_RESULT_FRAME;
+            result.detail.buffer = (uint *) &rx_buff;
+            result.detail.length = ptr;
+
+            // // Still here so a frame addressed to me - flag fill while we work out what to do with it
             
-            adlc_flag_fill(); // Flag fill and reset statuses - seems to need calling twice to clear everything
-            adlc_flag_fill();
+            // adlc_flag_fill(); // Flag fill and reset statuses - seems to need calling twice to clear everything
+            // adlc_flag_fill();
         
-            if (got_scout == false) {
-                // Am expecting a scout here, but could be an immediate op
-                if (ptr > 7) {
-                    // Too big for a scout so must be an immediate operation
-                    result.type = PICONET_RX_RESULT_IMMEDIATE_OP;
-                    result.detail.buffer = &rx_buff;
-                    result.detail.length = ptr;
-                } else {
-                    // Acknowledge the scout, and set flag for next run
+            // if (got_scout == false) {
+            //     // Am expecting a scout here, but could be an immediate op
+            //     if (ptr > 7) {
+            //         // Too big for a scout so must be an immediate operation
+            //         result.type = PICONET_RX_RESULT_IMMEDIATE_OP;
+            //         result.detail.buffer = (uint *) &rx_buff;
+            //         result.detail.length = ptr;
+            //     } else {
+            //         // Acknowledge the scout, and set flag for next run
                     
-                    // rx_buff[2] = Sender station
-                    // rx_buff[3] = Sender network
-                    // rx_buff[4] = ControlByte
-                    // rx_buff[5] = Port
+            //         // rx_buff[2] = Sender station
+            //         // rx_buff[3] = Sender network
+            //         // rx_buff[4] = ControlByte
+            //         // rx_buff[5] = Port
                     
-                    // Make a note of these, as we won't get them again in the payload
-                    rxControlByte = rx_buff[4];
-                    rxPort = rx_buff[5];
+            //         // Make a note of these, as we won't get them again in the payload
+            //         rxControlByte = rx_buff[4];
+            //         rxPort = rx_buff[5];
 
-                    // Only acknowledge if we are expecting something on the port
-                    if (true) { // (portInUse[rxPort]) { // TODO
-                        ack_rx();
-                        got_scout = true;
+            //         // Only acknowledge if we are expecting something on the port
+            //         if (true) { // (portInUse[rxPort]) { // TODO
+            //             ack_rx();
+            //             got_scout = true;
 
-                        // TODO: dubious - won't this always be time_ms as scout_timeout initialised as 0??
-                        scout_timeout = time_ms() + cfg_scout_timeout;
-                    }
-                }
-            } else {
-                // Have got a payload after the scout, acknowledge and process
-                ack_rx();
-                got_scout = false;
+            //             // TODO: dubious - won't this always be time_ms as scout_timeout initialised as 0??
+            //             scout_timeout = time_ms() + cfg_scout_timeout;
 
-                result.type = PICONET_RX_RESULT_FRAME;
-                result.detail.buffer = &rx_buff;
-                result.detail.length = ptr;
-            }
+            //             result.type = PICONET_RX_RESULT_SCOUT;
+            //             result.detail.buffer = (uint *) &rx_buff;
+            //             result.detail.length = ptr;
+            //         }
+            //     }
+            // } else {
+            //     // Have got a payload after the scout, acknowledge and process
+            //     ack_rx();
+            //     got_scout = false;
+
+            //     result.type = PICONET_RX_RESULT_FRAME;
+            //     result.detail.buffer = (uint *) &rx_buff;
+            //     result.detail.length = ptr;
+            // }
         }
+
+        // TODO: remove me
+        result.detail.sr1 = adlc_read(REG_STATUS_1);
+        result.detail.sr2 = adlc_read(REG_STATUS_2);
     } else {
         // Frame not valid - what happened?
         uint sr1 = adlc_read(REG_STATUS_1);
@@ -420,7 +443,9 @@ tEconetRxResult receive(void) {
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
             // Address present in FIFO, so fetch it and the rest of frame
-            return read_frame();
+            tEconetRxResult read_frame_result = read_frame();
+            // adlc_reset();
+            return read_frame_result;
         }
         
         if (status_reg_2 & STATUS_2_FRAME_VALID) {

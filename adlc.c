@@ -10,6 +10,7 @@ typedef enum { UNSPECIFIED, INPUT, OUTPUT } data_dir_type;
 const uint LED_PIN = 25;
 
 const uint GPIO_CLK_OUT = 21;
+const uint GPIO_CLK_IN = 20;
 const uint GPIO_TMP = 15; // used to test sampling clock out pin
 
 const uint GPIO_DATA_0 = 2;
@@ -26,6 +27,7 @@ const uint GPIO_BUFF_A0 = 11;
 const uint GPIO_BUFF_A1 = 12;
 const uint GPIO_BUFF_CS = 13;
 const uint GPIO_BUFF_IRQ = 14;
+const uint GPIO_BUFF_nRST = 22;
 
 data_dir_type data_dir = UNSPECIFIED;
 
@@ -116,6 +118,13 @@ void adlc_write(uint reg, uint data_val) {
     gpio_put(GPIO_BUFF_CS, 1);
 }
 
+void adlc_reset(void) {
+  gpio_put(GPIO_BUFF_nRST, 0);
+  sleep_ms(100);
+  gpio_put(GPIO_BUFF_nRST, 1);
+  sleep_ms(100);
+}
+
 void adlc_init(void) {
     // use USB clock to get 2 MHz for ADLC clock
     clock_gpio_init(GPIO_CLK_OUT, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_USB, 24);
@@ -131,18 +140,24 @@ void adlc_init(void) {
     gpio_set_dir(GPIO_BUFF_A1, GPIO_OUT);
     gpio_init(GPIO_BUFF_CS);
     gpio_set_dir(GPIO_BUFF_CS, GPIO_OUT);
+    gpio_init(GPIO_BUFF_nRST);
+    gpio_set_dir(GPIO_BUFF_nRST, GPIO_OUT);
 
     gpio_init(GPIO_TMP);
     gpio_set_dir(GPIO_TMP, GPIO_OUT);
 
-    // init GPIO inputs    
+    // init GPIO inputs
     gpio_init(GPIO_BUFF_IRQ);
     gpio_set_dir(GPIO_BUFF_IRQ, GPIO_IN);
+    gpio_init(GPIO_CLK_IN);
+    gpio_set_dir(GPIO_CLK_IN, GPIO_IN);
 
     // init GPIO for input/outputs data bus
     gpio_init_mask(0xff << 2);
 
     gpio_put(LED_PIN, 1);
+
+    adlc_reset();
 
     // Init Control Register 1 (CR1)
     adlc_write(0, 0b11000001);
@@ -154,7 +169,7 @@ void adlc_init(void) {
 //   digitalWriteDirect(PIN_D5,0); // Disable Loop mode (not used in Econet)
 //   digitalWriteDirect(PIN_D6,0); // Disable active on poll (not used in Econet)
 //   digitalWriteDirect(PIN_D7,0); // Disable Loop on-line (not used in Econet)
-  adlc_write(1, 0b00000000);
+    adlc_write(2, 0b00000000);
 
   // init Control Register 4 (CR4)
 //   digitalWriteDirect(PIN_D0,0); // Flag interframe control (not important in Econet) 
@@ -165,7 +180,26 @@ void adlc_init(void) {
 //   digitalWriteDirect(PIN_D5,0); // No transmit abort 
 //   digitalWriteDirect(PIN_D6,0); // No Extended abort (not used in Econet)
 //   digitalWriteDirect(PIN_D7,0); // Disable NRZI encoding (not used in Econet)
-  adlc_write(3, 0b00011110);
+    adlc_write(3, 0b00011110);
+}
+
+void adlc_write_cr1(uint data_val) {
+    adlc_write(0, data_val);
+}
+
+void adlc_write_cr2(uint data_val) {
+    adlc_write(0, 0b11000000); // Select CR2
+    adlc_write(1, data_val);
+}
+
+void adlc_write_cr3(uint data_val) {
+    adlc_write(0, 0b11000001); // Select CR3/4
+    adlc_write(1, data_val);
+}
+
+void adlc_write_cr4(uint data_val) {
+    adlc_write(0, 0b11000001); // Select CR3/4
+    adlc_write(3, data_val);
 }
 
 void adlc_irq_reset(void) {
