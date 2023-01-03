@@ -245,7 +245,101 @@ int main() {
     sleep_ms(2000); // give client a chance to reconnect
     printf("Hello world!\n");
 
-    core0_loop();
+    // core0_loop();
+    simple_sniff();
+}
+
+void abort_read(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
+}
+
+void simple_read_frame(void) {
+    const uint BUFFSIZE = 16384;
+    uint buffer[BUFFSIZE];
+    uint ptr = 0;
+    uint stat = 0;
+    bool frame = true;
+    bool error = false;
+
+    // First byte should be address
+    buffer[ptr++] = adlc_read(REG_FIFO);
+
+    while (frame) {
+        // Now check the status register
+        do {
+            stat = adlc_read(REG_STATUS_2);
+        } while (!(stat & (STATUS_2_RDA | STATUS_2_ADDR_PRESENT | STATUS_2_FRAME_VALID | STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)));
+
+/*
+#define STATUS_2_ADDR_PRESENT     1
+#define STATUS_2_FRAME_VALID      2
+#define STATUS_2_INACTIVE_IDLE_RX 4
+#define STATUS_2_ABORT_RX         8
+#define STATUS_2_FCS_ERROR        16
+#define STATUS_2_NOT_DCD          32
+#define STATUS_2_RX_OVERRUN       64
+#define STATUS_2_RDA              128
+*/
+
+        if (stat & (STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)) {
+            frame = false;
+            error = true;
+            continue;
+        }
+
+        if (stat & (STATUS_2_RDA | STATUS_2_ADDR_PRESENT)) {
+            buffer[ptr++] = adlc_read(REG_FIFO);
+        } else if (stat & STATUS_2_FRAME_VALID) {
+            buffer[ptr++] = adlc_read(REG_FIFO);
+
+            // Error or end of frame bits set so drop out
+            frame = false;
+            continue;
+        }
+    } // End of while in frame - Data Available with no error bits or end set
+
+    if (error) {
+        printf("Receive error:\n");
+        print_status2(stat);
+        abort_read();
+        return;
+    }
+
+    int i;
+    for (i = 0; i < ptr; i++) {
+        printf("%02x ", buffer[i]);
+    }
+    printf("\n");
+}
+
+void simple_sniff(void) {
+    econet_init();
+    while (true) {
+        uint status_reg_1 = adlc_read(REG_STATUS_1);
+
+        if (!(status_reg_1 & (STATUS_1_S2_RD_REQ | STATUS_1_RDA))) {
+            continue;
+        }
+
+        uint status_reg_2 = adlc_read(REG_STATUS_2);
+        // print_status1(status_reg_1);
+        // print_status2(status_reg_2);
+
+        if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
+            //uint addr = adlc_read(REG_FIFO);
+            //printf("Address: %02x\n", addr);
+            simple_read_frame();
+        }
+
+        if (status_reg_2 & STATUS_2_RDA) {
+            //simple_read_frame();
+        }
+
+        if (status_reg_1 & STATUS_1_IRQ) {
+            adlc_irq_reset();
+        }
+    }
 }
 
 void test_read(void) {

@@ -27,6 +27,42 @@
 #define STATUS_2_RX_OVERRUN       64
 #define STATUS_2_RDA              128
 
+#define CR1_ADDR_CONTROL          1
+#define CR1_RIE                   2
+#define CR1_TIE                   4
+#define CR1_RDSR_MODE             8
+#define CR1_TDSR_MODE             16
+#define CR1_RX_FRAME_DISCONTINUE  32
+#define CR1_RX_RESET              64
+#define CR1_TX_RESET              128
+
+#define CR2_PRIO_STATUS_ENABLE    1
+#define CR2_2_BYTE_TRANSFER       2
+#define CR2_FLAG_IDLE             4
+#define CR2_FRAME_COMPLETE        8
+#define CR2_TX_LAST_DATA          16
+#define CR2_CLEAR_RX_STATUS       32
+#define CR2_CLEAR_TX_STATUS       64
+#define CR2_RTS_CONTROL           128
+
+#define CR3_LCF_SELECT            1
+#define CR3_ECF_SELECT            2
+#define CR3_ADDR_EXT_MODE         4
+#define CR3_IDLE_TYPE             8
+#define CR3_FLAG_DETECT_ENABLE    16
+#define CR3_LOOP_MODE             32
+#define CR3_ACTIVE_ON_POLL        64
+#define CR3_LOOP_ONLINE_CTRL_DTR  128
+
+#define CR4_INTERFRAME_CTRL       1
+#define CR4_TX_WORD_LEN_1         2
+#define CR4_TX_WORD_LEN_2         4
+#define CR4_RX_WORD_LEN_1         8
+#define CR4_RX_WORD_LEN_2         16
+#define CR4_TX_ABORT              32
+#define CR4_ABORT_EXTEND          64
+#define CR4_NRZI_NRZ              128
+
 void adlc_init(void);
 void adlc_reset(void);
 uint adlc_read(uint reg);

@@ -109,13 +109,10 @@ void adlc_init(void) {
 
     adlc_reset();
 
-    // Reenable before testing with ADLC (and don't forget pin swap!)
-/*
     // Init Control Register 1 (CR1)
     adlc_write_cr1(0b11000001);
     adlc_write_cr3(0b00000000);
     adlc_write_cr4(0b00011110);
-*/
 
     // todo get free sm
     pio = pio0;
