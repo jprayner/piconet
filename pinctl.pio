@@ -23,13 +23,13 @@ start:
     jmp !x do_read        side 0b11 [0]
 
 do_write:
-    ; assert !CS and R!W, wait for clock rise
-    wait 1 GPIO 21        side 0b00 [ADLC_CLK_RISE_FALL - 1]
-
     ; write data value
     mov pins, y           side 0b00 [0]     ; write data value
     mov osr, ~null        side 0b00 [0]     ; set OSR to all 1's
     out pindirs, 8        side 0b00 [0]     ; set pin dirs to output
+
+    ; assert !CS and R!W, wait for clock rise
+    wait 1 GPIO 21        side 0b00 [ADLC_CLK_RISE_FALL - 1]
 
     ; send ack to ISR and push to RX FIFO
     in y, 8               side 0b00 [0]
