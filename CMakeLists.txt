@@ -12,8 +12,10 @@ add_executable(piconet
     util.c
 )
 
+pico_generate_pio_header(piconet ${CMAKE_CURRENT_LIST_DIR}/pinctl.pio)
+
 # pull in common dependencies and additional pwm hardware support
-target_link_libraries(piconet pico_stdlib pico_multicore hardware_pwm)
+target_link_libraries(piconet pico_stdlib pico_multicore hardware_pwm hardware_pio)
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(piconet)

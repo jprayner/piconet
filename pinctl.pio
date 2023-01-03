@@ -1,0 +1,93 @@
+.program pinctl
+.side_set 2
+.define public ADLC_CLK_RISE_FALL    2     ; 2 * 15.625ns clock period > 20ns max time clock to rise fall (before asseting CS after fall)
+.define public ADLC_OUTPUT_DELAY_1   5     ; 5 * 15.625ns clock period > half of the 150ns max time for data to appear
+.define public ADLC_OUTPUT_DELAY_2   5     ; 5 * 15.625ns clock period > other half of the 150ns max time for data to appear
+.define public ADLC_CS_HOLD_TIME     1     ; 1 * 15.625ns clock period > 10ns min hold time for !CS following clock fall
+.define public ADLC_WRITE_HOLD_TIME  1     ; 1 * 15.625ns clock period > 10ns min hold time for data following clock fall
+
+start:
+    ; init data dir to read (high impedance), !CS not asserted, R!W is set for reading
+    mov osr, null         side 0b11 [0]    ; set OSR to all 0's
+    out pindirs, 8        side 0b11 [0]    ; set data pin dirs to input
+
+    ; wait for command
+    pull                  side 0b11 [0]    ; read 32-bit word of FIFO data into OSR (blocking)
+    out y, 8              side 0b11 [0]    ; read data value if writing (ignored if reading)
+    out x, 8              side 0b11 [0]    ; read command (0 if reading; 1 if writing)
+
+    ; wait clock fall
+    wait 1 GPIO 21        side 0b11 [0]
+    wait 0 GPIO 21        side 0b11 [ADLC_CLK_RISE_FALL - 1]
+
+    jmp !x do_read        side 0b11 [0]
+
+do_write:
+    ; assert !CS and R!W, wait for clock rise
+    wait 1 GPIO 21        side 0b00 [ADLC_CLK_RISE_FALL - 1]
+
+    ; write data value
+    mov pins, y           side 0b00 [0]     ; write data value
+    mov osr, ~null        side 0b00 [0]     ; set OSR to all 1's
+    out pindirs, 8        side 0b00 [0]     ; set pin dirs to output
+
+    ; send ack to ISR and push to RX FIFO
+    in y, 8               side 0b00 [0]
+	push                  side 0b00 [0]
+
+    ; wait for clock fall & write hold time before releasing !CS whilst awaiting next command
+    wait 0 GPIO 21        side 0b00 [ADLC_CLK_RISE_FALL + ADLC_WRITE_HOLD_TIME - 1]
+    jmp start             side 0b11 [0]
+
+do_read:
+    ; assert !CS and R!W, wait for clock rise + time for data to appear
+    wait 1 GPIO 21        side 0b10 [ADLC_CLK_RISE_FALL + ADLC_OUTPUT_DELAY_1 - 1]
+    nop                   side 0b10 [ADLC_OUTPUT_DELAY_2 - 1] ; can't fit whole wait in 3 delay bits (0-7) available with 2 side-set pins
+
+    ; send pins to ISR and push to RX FIFO
+    in PINS, 8            side 0b10 [0]
+	push                  side 0b10 [0]
+
+    ; wait for clock fall & CS hold time before releasing !CS whilst awaiting next command
+    wait 0 GPIO 21        side 0b10 [ADLC_CLK_RISE_FALL + ADLC_CS_HOLD_TIME - 1]
+    jmp start             side 0b11 [0]
+
+% c-sdk {
+
+void pinctl_program_init(PIO pio, uint sm, uint offset, uint pin_data_0, uint pin_cs, float frequency) {
+    pio_sm_config config = pinctl_program_get_default_config(offset);
+
+    // init SIDE-SET pin group: ADLC !CS signal and RnW
+    pio_gpio_init(pio, pin_cs);
+    pio_gpio_init(pio, pin_cs + 1);
+    sm_config_set_sideset_pins(&config, pin_cs);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_cs, 2, true); // configure for output
+
+    // init (identical) IN and OUT pin groups: our data pins D0-D7
+    pio_gpio_init(pio, pin_data_0 + 0);
+    pio_gpio_init(pio, pin_data_0 + 1);
+    pio_gpio_init(pio, pin_data_0 + 2);
+    pio_gpio_init(pio, pin_data_0 + 3);
+    pio_gpio_init(pio, pin_data_0 + 4);
+    pio_gpio_init(pio, pin_data_0 + 5);
+    pio_gpio_init(pio, pin_data_0 + 6);
+    pio_gpio_init(pio, pin_data_0 + 7);
+    sm_config_set_out_pins(&config, pin_data_0, 8);
+    sm_config_set_in_pins(&config, pin_data_0);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_data_0, 8, false);  // configure for input initially (will change over time)
+
+    // init clock
+    float clock_divider = (float) clock_get_hz(clk_sys) / frequency;
+    sm_config_set_clkdiv(&config, clock_divider);
+
+    // configure output shift register — 8 bits for value, 1 bit for action (can't use auto-push because of OSR manipulation to support pindir changes)
+    // args: BOOL right_shift, BOOL autopull, 1..32 pull_threshold
+    sm_config_set_out_shift(&config, true, false, 9);
+
+    sm_config_set_in_shift(&config, false, false, 8);
+
+    pio_sm_init(pio, sm, offset, &config);
+    pio_sm_set_enabled(pio, sm, true);
+}
+
+%}

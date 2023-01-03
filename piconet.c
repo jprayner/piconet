@@ -156,12 +156,7 @@ void core1_entry() {
     }
 }
 
-int main() {
-    stdio_init_all();
-
-    sleep_ms(5000); // give client a chance to reconnect
-    printf("Hello, world 2!\n");
-
+void core0_loop() {
     queue_init(&command_queue, sizeof(command_t), 1);
     queue_init(&event_queue, sizeof(event_t), 1);
     multicore_launch_core1(core1_entry);
@@ -241,13 +236,35 @@ int main() {
                 }
             }
         }
+    }
+}
 
-/*
-        printf("IRQ: %u\n", gpio_get(14));
-        sleep_ms(500);
-*/
-        // printf("Read value: "BYTE_TO_BINARY_PATTERN, BYTE_TO_BINARY(call_result));
-        // printf("\n");
-        // sleep_ms(500);
+int main() {
+    stdio_init_all();
+
+    sleep_ms(2000); // give client a chance to reconnect
+    printf("Hello world!\n");
+
+    core0_loop();
+}
+
+void test_read(void) {
+    adlc_init();
+    while (true) {
+        for (uint i = 0; i < 1; i++) {
+            uint val = adlc_read(i);
+            printf("ADLC %u: %u\n", i, val);
+            //adlc_write(i, i);
+            sleep_ms(500);
+        }
+    }
+}
+
+void test_write(void) {
+    adlc_init();
+    while (true) {
+        for (uint i = 0; i < 1; i++) {
+            adlc_write(i, i);
+        }
     }
 }
