@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/time.h>
 #include "pico/stdlib.h"
 #include "pico/util/queue.h"
 #include "pico/multicore.h"
@@ -239,16 +240,6 @@ void core0_loop() {
     }
 }
 
-int main() {
-    stdio_init_all();
-
-    sleep_ms(2000); // give client a chance to reconnect
-    printf("Hello world!\n");
-
-    // core0_loop();
-    simple_sniff();
-}
-
 void abort_read(void) {
     adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
     adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
@@ -257,19 +248,20 @@ void abort_read(void) {
 void simple_read_frame(void) {
     const uint BUFFSIZE = 16384;
     uint buffer[BUFFSIZE];
+    uint status_history[BUFFSIZE];
+    uint hist_ptr = 0;
     uint ptr = 0;
     uint stat = 0;
-    bool frame = true;
     bool error = false;
 
     // First byte should be address
     buffer[ptr++] = adlc_read(REG_FIFO);
 
-    while (frame) {
-        // Now check the status register
+    while (true) {
         do {
             stat = adlc_read(REG_STATUS_2);
-        } while (!(stat & (STATUS_2_RDA | STATUS_2_ADDR_PRESENT | STATUS_2_FRAME_VALID | STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)));
+            status_history[hist_ptr++] = stat;
+        } while (!(stat & (STATUS_2_RDA | STATUS_2_RX_OVERRUN | STATUS_2_FCS_ERROR | STATUS_2_ABORT_RX | STATUS_2_FRAME_VALID)));
 
 /*
 #define STATUS_2_ADDR_PRESENT     1
@@ -283,19 +275,15 @@ void simple_read_frame(void) {
 */
 
         if (stat & (STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)) {
-            frame = false;
             error = true;
-            continue;
+            break;
         }
 
-        if (stat & (STATUS_2_RDA | STATUS_2_ADDR_PRESENT)) {
+        if (stat & (STATUS_2_RDA)) {
             buffer[ptr++] = adlc_read(REG_FIFO);
         } else if (stat & STATUS_2_FRAME_VALID) {
             buffer[ptr++] = adlc_read(REG_FIFO);
-
-            // Error or end of frame bits set so drop out
-            frame = false;
-            continue;
+            break;
         }
     } // End of while in frame - Data Available with no error bits or end set
 
@@ -310,11 +298,15 @@ void simple_read_frame(void) {
     for (i = 0; i < ptr; i++) {
         printf("%02x ", buffer[i]);
     }
-    printf("\n");
+    printf(".\n");
+    // for (i = 0; i < hist_ptr; i++) {
+    //     print_status2(status_history[i]);
+    // }
 }
 
 void simple_sniff(void) {
     econet_init();
+
     while (true) {
         uint status_reg_1 = adlc_read(REG_STATUS_1);
 
@@ -323,8 +315,6 @@ void simple_sniff(void) {
         }
 
         uint status_reg_2 = adlc_read(REG_STATUS_2);
-        // print_status1(status_reg_1);
-        // print_status2(status_reg_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
             //uint addr = adlc_read(REG_FIFO);
@@ -361,4 +351,14 @@ void test_write(void) {
             adlc_write(i, i);
         }
     }
+}
+
+int main() {
+    stdio_init_all();
+
+    sleep_ms(2000); // give client a chance to reconnect
+    printf("Hello world!\n");
+
+    // core0_loop();
+    simple_sniff();
 }

@@ -108,11 +108,20 @@ void adlc_init(void) {
     gpio_put(LED_PIN, 1);
 
     adlc_reset();
-
+/*
+#define CR2_PRIO_STATUS_ENABLE    1
+#define CR2_2_BYTE_TRANSFER       2
+#define CR2_FLAG_IDLE             4
+#define CR2_FRAME_COMPLETE        8
+#define CR2_TX_LAST_DATA          16
+#define CR2_CLEAR_RX_STATUS       32
+#define CR2_CLEAR_TX_STATUS       64
+#define CR2_RTS_CONTROL           128
+*/
     // Init Control Register 1 (CR1)
-    adlc_write_cr1(0b11000001);
-    adlc_write_cr3(0b00000000);
-    adlc_write_cr4(0b00011110);
+    adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET);
+    adlc_write_cr3(0);
+    adlc_write_cr4(CR4_TX_WORD_LEN_1 | CR4_TX_WORD_LEN_2 | CR4_RX_WORD_LEN_1 | CR4_RX_WORD_LEN_2);
 
     // todo get free sm
     pio = pio0;
@@ -125,8 +134,8 @@ void adlc_init(void) {
 }
 
 void adlc_irq_reset(void) {
-  adlc_write(0, 0b00000010); // Enable RX interrupts, select address 1
-  adlc_write(1, 0b01100001); // Clear RX and TX status, prioritise status 
+  adlc_write_cr1(CR1_RIE);
+  adlc_write(1, CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
 }
 
 void adlc_flag_fill(void) {
