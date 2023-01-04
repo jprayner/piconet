@@ -335,11 +335,11 @@ void simple_sniff(void) {
 void test_read(void) {
     adlc_init();
     while (true) {
-        for (uint i = 0; i < 1; i++) {
+        for (uint i = 0; i < 4; i++) {
             uint val = adlc_read(i);
-            printf("ADLC %u: %u\n", i, val);
+            //printf("ADLC %u: %u\n", i, val);
             //adlc_write(i, i);
-            sleep_ms(500);
+            //sleep_ms(500);
         }
     }
 }
@@ -357,8 +357,9 @@ int main() {
     stdio_init_all();
 
     sleep_ms(2000); // give client a chance to reconnect
-    printf("Hello world!\n");
+    printf("Hello world 30!\n");
 
     // core0_loop();
+    // test_read();
     simple_sniff();
 }

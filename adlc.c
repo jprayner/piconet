@@ -118,19 +118,19 @@ void adlc_init(void) {
 #define CR2_CLEAR_TX_STATUS       64
 #define CR2_RTS_CONTROL           128
 */
-    // Init Control Register 1 (CR1)
-    adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET);
-    adlc_write_cr3(0);
-    adlc_write_cr4(CR4_TX_WORD_LEN_1 | CR4_TX_WORD_LEN_2 | CR4_RX_WORD_LEN_1 | CR4_RX_WORD_LEN_2);
-
     // todo get free sm
     pio = pio0;
     sm = pio_claim_unused_sm(pio, true);
     uint offset = pio_add_program(pio, &pinctl_program);
 
     // state machine frequency of 32x 2MHz = 64MHz == 15.625ns period
-	// => can sample upto 16 points in low or high clock state
+	// => can sample upto 16 points in each of low and high clock states
     pinctl_program_init(pio, sm, offset, GPIO_DATA_0, GPIO_BUFF_CS, 64000000);
+
+    // Init Control Register 1 (CR1)
+    adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET);
+    adlc_write_cr3(0);
+    adlc_write_cr4(CR4_TX_WORD_LEN_1 | CR4_TX_WORD_LEN_2 | CR4_RX_WORD_LEN_1 | CR4_RX_WORD_LEN_2);
 }
 
 void adlc_irq_reset(void) {

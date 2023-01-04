@@ -11,6 +11,7 @@ start:
     mov osr, null         side 0b11 [0]    ; set OSR to all 0's
     out pindirs, 8        side 0b11 [0]    ; set data pin dirs to input
 
+loop:
     ; wait for command
     pull                  side 0b11 [0]    ; read 32-bit word of FIFO data into OSR (blocking)
     out y, 8              side 0b11 [0]    ; read data value if writing (ignored if reading)
@@ -37,7 +38,14 @@ do_write:
 
     ; wait for clock fall & write hold time before releasing !CS whilst awaiting next command
     wait 0 GPIO 21        side 0b00 [ADLC_CLK_RISE_FALL + ADLC_WRITE_HOLD_TIME - 1]
-    jmp start             side 0b11 [0]
+
+    ; release !CS but change to PINs to input (high impedance) before making R!W high
+    ; to avoid driving RP2040 against the 245 buffer
+    mov osr, null         side 0b01 [0]      ; set OSR to all 0's
+    out pindirs, 8        side 0b01 [0]      ; set data pin dirs to input
+
+    ; now we can safely set the buffer (and ADLC) to read
+    jmp loop              side 0b11 [0]
 
 do_read:
     ; assert !CS and R!W, wait for clock rise + time for data to appear
@@ -50,7 +58,7 @@ do_read:
 
     ; wait for clock fall & CS hold time before releasing !CS whilst awaiting next command
     wait 0 GPIO 21        side 0b10 [ADLC_CLK_RISE_FALL + ADLC_CS_HOLD_TIME - 1]
-    jmp start             side 0b11 [0]
+    jmp loop              side 0b11 [0]
 
 % c-sdk {
 
