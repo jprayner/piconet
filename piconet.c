@@ -10,6 +10,8 @@
 #include "adlc.h"
 #include "util.h"
 
+//define DEBUG
+
 const uint CMD_RECEIVE = 1;
 
 typedef enum ePiconetEventType {
@@ -245,6 +247,10 @@ void abort_read(void) {
     adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
 }
 
+void clear_rx(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+}
+
 void simple_read_frame(void) {
     const uint BUFFSIZE = 16384;
     uint buffer[BUFFSIZE];
@@ -279,10 +285,12 @@ void simple_read_frame(void) {
             break;
         }
 
-        if (stat & (STATUS_2_RDA)) {
+        if (stat & (STATUS_2_FRAME_VALID | STATUS_2_RDA)) {
             buffer[ptr++] = adlc_read(REG_FIFO);
-        } else if (stat & STATUS_2_FRAME_VALID) {
-            buffer[ptr++] = adlc_read(REG_FIFO);
+        }
+
+        if (stat & STATUS_2_FRAME_VALID) {
+            clear_rx();
             break;
         }
     } // End of while in frame - Data Available with no error bits or end set
@@ -299,9 +307,11 @@ void simple_read_frame(void) {
         printf("%02x ", buffer[i]);
     }
     printf(".\n");
-    // for (i = 0; i < hist_ptr; i++) {
-    //     print_status2(status_history[i]);
-    // }
+    #ifdef DEBUG
+    for (i = 0; i < hist_ptr; i++) {
+        print_status2(status_history[i]);
+    }
+    #endif
 }
 
 void simple_sniff(void) {
@@ -318,8 +328,12 @@ void simple_sniff(void) {
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
             //uint addr = adlc_read(REG_FIFO);
-            //printf("Address: %02x\n", addr);
             simple_read_frame();
+#ifdef DEBUG
+
+            printf("Previous S2 Status on ADDR_PRESENT:\n");
+            print_status2(status_reg_2);
+#endif
         }
 
         if (status_reg_2 & STATUS_2_RDA) {
@@ -357,7 +371,7 @@ int main() {
     stdio_init_all();
 
     sleep_ms(2000); // give client a chance to reconnect
-    printf("Hello world 30!\n");
+    printf("Hello world 31!\n");
 
     // core0_loop();
     // test_read();
