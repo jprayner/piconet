@@ -251,73 +251,105 @@ void clear_rx(void) {
     adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
 }
 
-void simple_read_frame(void) {
-    const uint BUFFSIZE = 16384;
-    uint buffer[BUFFSIZE];
-    uint status_history[BUFFSIZE];
-    uint hist_ptr = 0;
-    uint ptr = 0;
+typedef enum eFrameReadStatus {
+    ECO_FRAME_READ_OK = 0L,
+    ECO_FRAME_READ_NO_ADDR_MATCH,
+    ECO_FRAME_READ_ERROR_CRC,
+    ECO_FRAME_READ_ERROR_OVERRUN,
+    ECO_FRAME_READ_ERROR_ABORT,
+    ECO_FRAME_READ_ERROR_TIMEOUT,
+    ECO_FRAME_READ_ERROR_OVERFLOW,
+    ECO_FRAME_READ_ERROR_UNEXPECTED,
+} tFrameReadStatus;
+
+typedef struct
+{
+    tFrameReadStatus status;
+    size_t bytes_read;
+} tFrameReadResult;
+
+tFrameReadResult simple_read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms) {
+    tFrameReadResult result = {
+        ECO_FRAME_READ_ERROR_UNEXPECTED,
+        0
+    };
     uint stat = 0;
-    bool error = false;
+
+    if (buffer_len == 0) {
+        result.status = ECO_FRAME_READ_ERROR_OVERFLOW;
+        return result;
+    }
 
     // First byte should be address
-    buffer[ptr++] = adlc_read(REG_FIFO);
+    buffer[result.bytes_read++] = adlc_read(REG_FIFO);
+    if (addr_len > 0) {
+        bool discard = true;
+        for (uint i = 0; i < addr_len; i++) {
+            if (buffer[result.bytes_read - 1] == addr[i]) {
+                discard = false;
+                break;
+            }
+        }
 
-    while (true) {
+        if (discard) {
+            result.status = ECO_FRAME_READ_NO_ADDR_MATCH;
+            return result;
+        }
+    }
+
+    uint32_t time_start_ms = time_ms();
+
+    bool frame_valid = false;
+    while (!frame_valid) {
         do {
-            stat = adlc_read(REG_STATUS_2);
-            status_history[hist_ptr++] = stat;
-        } while (!(stat & (STATUS_2_RDA | STATUS_2_RX_OVERRUN | STATUS_2_FCS_ERROR | STATUS_2_ABORT_RX | STATUS_2_FRAME_VALID)));
+            if (time_ms() > time_start_ms + timeout_ms) {
+                result.status = ECO_FRAME_READ_ERROR_TIMEOUT;
+                return result;
+            }
 
-/*
-#define STATUS_2_ADDR_PRESENT     1
-#define STATUS_2_FRAME_VALID      2
-#define STATUS_2_INACTIVE_IDLE_RX 4
-#define STATUS_2_ABORT_RX         8
-#define STATUS_2_FCS_ERROR        16
-#define STATUS_2_NOT_DCD          32
-#define STATUS_2_RX_OVERRUN       64
-#define STATUS_2_RDA              128
-*/
+            stat = adlc_read(REG_STATUS_2);
+        } while (!(stat & (STATUS_2_RDA | STATUS_2_FRAME_VALID | STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)));
 
         if (stat & (STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)) {
-            error = true;
-            break;
+            if (stat & STATUS_2_ABORT_RX) {
+                result.status = ECO_FRAME_READ_ERROR_ABORT;
+            } else if (stat & STATUS_2_FCS_ERROR) {
+                result.status = ECO_FRAME_READ_ERROR_CRC;
+            } else if (stat & STATUS_2_RX_OVERRUN) {
+                result.status = ECO_FRAME_READ_ERROR_OVERRUN;
+            }
+            return result;
         }
 
         if (stat & (STATUS_2_FRAME_VALID | STATUS_2_RDA)) {
-            buffer[ptr++] = adlc_read(REG_FIFO);
+            if (result.bytes_read >= buffer_len) {
+                result.status = ECO_FRAME_READ_ERROR_OVERFLOW;
+                return result;
+            }
+
+            buffer[result.bytes_read++] = adlc_read(REG_FIFO);
         }
 
-        if (stat & STATUS_2_FRAME_VALID) {
-            clear_rx();
-            break;
-        }
-    } // End of while in frame - Data Available with no error bits or end set
-
-    if (error) {
-        printf("Receive error:\n");
-        print_status2(stat);
-        abort_read();
-        return;
+        frame_valid = (stat & STATUS_2_FRAME_VALID);
     }
 
-    int i;
-    for (i = 0; i < ptr; i++) {
-        printf("%02x ", buffer[i]);
-    }
-    printf(".\n");
-    #ifdef DEBUG
-    for (i = 0; i < hist_ptr; i++) {
-        print_status2(status_history[i]);
-    }
-    #endif
+    result.status = ECO_FRAME_READ_OK;
+    return result;
 }
 
 void simple_sniff(void) {
+    const uint NUM_BUFFS = 20;
+    const uint BUFFSIZE = 8000;
+    const uint MAX_LISTEN_ADDRS = 16;
+    uint8_t buffers[NUM_BUFFS][BUFFSIZE];
+    size_t bytes_read[NUM_BUFFS];
+    uint8_t listen_addrs[MAX_LISTEN_ADDRS];
+    uint buffer_index = 0;
     econet_init();
 
-    while (true) {
+    uint32_t start_time = 0;
+
+    while (start_time == 0 || time_ms() < start_time + 3000) {
         uint status_reg_1 = adlc_read(REG_STATUS_1);
 
         if (!(status_reg_1 & (STATUS_1_S2_RD_REQ | STATUS_1_RDA))) {
@@ -327,22 +359,69 @@ void simple_sniff(void) {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
-            //uint addr = adlc_read(REG_FIFO);
-            simple_read_frame();
-#ifdef DEBUG
+            if (buffer_index >= NUM_BUFFS - 1) {
+                break;
+            }
+            tFrameReadResult read_result = simple_read_frame(buffers[buffer_index], sizeof(buffers[buffer_index]), listen_addrs, 0, 100000);
 
-            printf("Previous S2 Status on ADDR_PRESENT:\n");
-            print_status2(status_reg_2);
-#endif
-        }
+            switch (read_result.status) {
+                case ECO_FRAME_READ_OK: {
+                    bytes_read[buffer_index] = read_result.bytes_read;
+                    buffer_index++;
 
-        if (status_reg_2 & STATUS_2_RDA) {
-            //simple_read_frame();
+                    if (start_time == 0) {
+                        start_time = time_ms();
+                    }
+
+                    clear_rx();
+                    break;
+                }
+                case ECO_FRAME_READ_ERROR_TIMEOUT:
+                    printf("ECO_FRAME_READ_ERROR_TIMEOUT\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_NO_ADDR_MATCH:
+                    printf("ECO_FRAME_READ_NO_ADDR_MATCH\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_OVERRUN:
+                    printf("ECO_FRAME_READ_ERROR_OVERRUN\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_ABORT:
+                    printf("ECO_FRAME_READ_ERROR_ABORT\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_CRC:
+                    printf("ECO_FRAME_READ_ERROR_CRC\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_OVERFLOW:
+                    printf("ECO_FRAME_READ_ERROR_OVERFLOW\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_UNEXPECTED:
+                    printf("ECO_FRAME_READ_ERROR_OVERFLOW\n");
+                    abort_read();
+                    break;
+                default:
+                    printf("ERRR\n");
+                    abort_read();
+                    break;
+            }
         }
 
         if (status_reg_1 & STATUS_1_IRQ) {
             adlc_irq_reset();
         }
+    }
+
+    for (uint i = 0; i < (buffer_index - 1); i++) {
+        printf("Frame %u: ", i);
+        for (uint j = 0; j < bytes_read[i]; j++) {
+            printf("%02x ", buffers[i][j]);
+        }
+        printf(".\n");
     }
 }
 

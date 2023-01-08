@@ -14,6 +14,6 @@
   (byte & 0x02 ? '1' : '0'), \
   (byte & 0x01 ? '1' : '0') 
 
-uint time_ms(void);
+uint32_t time_ms(void);
 
 #endif
