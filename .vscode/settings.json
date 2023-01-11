@@ -20,6 +20,7 @@
     "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
     "files.associations": {
         "econet.h": "c",
-        "adlc.h": "c"
+        "adlc.h": "c",
+        "clocks.h": "c"
     }
 }

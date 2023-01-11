@@ -425,6 +425,338 @@ void simple_sniff(void) {
     }
 }
 
+bool parse_notify_data(uint8_t *buffer, size_t bytes_read) {
+    // printf("parse_notify_data\n");
+    // for (uint j = 0; j < bytes_read; j++) {
+    //     printf("%02x ", buffer[j]);
+    // }
+    // printf(".\n");
+
+    if (bytes_read < 5) {
+        return false;
+    }
+
+    uint8_t to_station      = buffer[0];
+    uint8_t to_network      = buffer[1];
+    uint8_t from_station    = buffer[2];
+    uint8_t from_network    = buffer[3];
+    uint8_t data            = buffer[4];
+
+    if (to_station != 0x02 | to_network != 0x00) {
+        return false;
+    }
+
+    printf("%c", data);
+    return true;
+}
+
+bool parse_notify_scout(uint8_t *buffer, size_t bytes_read) {
+    if (bytes_read < 10) {
+        return false;
+    }
+/*
+    for (uint j = 0; j < bytes_read[i]; j++) {
+        printf("%02x ", buffers[i][j]);
+    }
+    printf(".\n");
+*/
+    uint8_t to_station      = buffer[0];
+    uint8_t to_network      = buffer[1];
+    uint8_t from_station    = buffer[2];
+    uint8_t from_network    = buffer[3];
+    uint8_t control_byte    = buffer[4];
+    uint8_t port            = buffer[5];
+    uint8_t data            = buffer[8];
+
+    if (to_station != 0x02 | to_network != 0x00 | control_byte != 0x85 | port != 0x00) {
+        return false;
+    }
+
+    return true;
+}
+
+bool seize_line(void) {
+    uint8_t count, outercount, seized = 0;
+    outercount = 0;
+
+    while (outercount++ < 1 && !seized)
+    {
+        // Attempt to seize line
+        adlc_write_cr2(CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_PRIO_STATUS_ENABLE | CR2_FLAG_IDLE);
+        uint sr2 = adlc_read(REG_STATUS_2);
+
+        // No clock
+        if (sr2 & STATUS_2_NOT_DCD) {
+            printf("[No clock]");
+            return false;
+        }
+
+        print_status2(sr2);
+        count = 0;
+        while (count++ < 5 && (!(sr2 & STATUS_2_INACTIVE_IDLE_RX))) {
+            adlc_write_cr2(CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_PRIO_STATUS_ENABLE | CR2_FLAG_IDLE);
+            sleep_ms(count << 2);
+            sr2 = adlc_read(REG_STATUS_2);
+            print_status2(sr2);
+        }
+
+        if (sr2 & STATUS_2_INACTIVE_IDLE_RX)
+        {
+            adlc_write_cr2(CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_PRIO_STATUS_ENABLE | CR2_FLAG_IDLE | CR2_RTS_CONTROL);
+            adlc_write_cr1(CR1_RX_RESET | CR1_TIE);
+            uint sr1 = adlc_read(REG_STATUS_1);
+            print_status1(sr1);
+            if (!(sr1 & STATUS_1_NOT_CTS)) {
+                return true;
+            }
+        }
+    }
+
+    printf("[Timeout]");
+    return false;
+}
+
+typedef enum eFrameWriteStatus {
+    ECO_FRAME_WRITE_OK = 0L,
+    ECO_FRAME_WRITE_UNDERRUN,
+    ECO_FRAME_WRITE_COLLISION,
+    ECO_FRAME_WRITE_READY_TIMEOUT,
+    ECO_FRAME_WRITE_UNEXPECTED,
+} tFrameWriteStatus;
+
+tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
+    static uint timeout_ms = 2000;
+	char tdra_flag;
+	int loopcount = 0;
+    int tdra_counter;
+    uint sr1;
+
+    uint32_t time_start_ms = time_ms();
+
+    adlc_write(0, 0b00000000); // Disable RX interrupts
+
+    while (!(adlc_read(REG_STATUS_1) & STATUS_1_FRAME_COMPLETE)) {
+        if (time_ms() > time_start_ms + timeout_ms) {
+            return ECO_FRAME_WRITE_READY_TIMEOUT;
+        }
+
+        adlc_write(1, 0b11100101); // CR2: raise RTS, clear TX and RX status, flag fill and Prioritise status
+    };
+    
+
+    // printf("sending: ");
+    // for (uint j = 0; j < len; j++) {
+    //     printf("%02x ", buffer[j]);
+    // }
+    // printf("\n");
+
+    for (uint ptr = 0; ptr < len; ptr++) {
+        // While not FC/TDRA set, loop until it is - or we get an error
+        while (true) {
+            uint sr1 = adlc_read(REG_STATUS_1);
+            if (sr1 & STATUS_1_TX_UNDERRUN) {
+                return ECO_FRAME_WRITE_UNDERRUN;
+            }
+            if (sr1 & STATUS_1_FRAME_COMPLETE) {
+                break; // We have TDRA
+            }
+            // if (sr1 & 192) { // Some other error JIM NOTE: looks wrong mask to me
+            //     printSR1(sr1); 
+            //     resetIRQ(); 
+            //     return(false);
+            // };
+
+            if (time_ms() > time_start_ms + timeout_ms) {
+                // move to reset_irq or similar
+                adlc_write(0, 0b00000010); // Enable RX interrupts, select CR2
+                adlc_write(1, 0b01100001); // Clear RX and TX status, prioritise status 
+
+                return ECO_FRAME_WRITE_READY_TIMEOUT;
+            }
+        }
+
+        adlc_write(REG_FIFO, buffer[ptr]);
+    }
+
+/*
+#define CR2_PRIO_STATUS_ENABLE    1
+#define CR2_2_BYTE_TRANSFER       2
+#define CR2_FLAG_IDLE             4
+#define CR2_FRAME_COMPLETE        8
+#define CR2_TX_LAST_DATA          16
+#define CR2_CLEAR_RX_STATUS       32
+#define CR2_CLEAR_TX_STATUS       64
+#define CR2_RTS_CONTROL           128
+*/
+//econet_write_cr(ECONET_GPIO_CR2, ECONET_GPIO_C2_TXLAST | ECONET_GPIO_C2_FC | ECONET_GPIO_C2_FLAGIDLE | ECONET_GPIO_C2_PSE); // No RX status reset
+
+
+    // CR2_PRIO_STATUS_ENABLE | CR2_FRAME_COMPLETE | CR2_TX_LAST_DATA | CR2_CLEAR_RX_STATUS
+    adlc_write(1, CR2_TX_LAST_DATA | CR2_FRAME_COMPLETE | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE); 
+    // was: 0b00111001); // Tell the ADLC that was the last byte, and clear flag fill modes and RTS. 
+    adlc_write(0, 0b00000100); // Tx interrupt enable
+
+    // wait for IRQ
+    while (true) {
+        sr1 = adlc_read(REG_STATUS_1);
+        if (sr1 & STATUS_1_IRQ) {
+            break;
+        }
+        if (time_ms() > time_start_ms + timeout_ms) {
+            return ECO_FRAME_WRITE_READY_TIMEOUT;
+        }
+    };
+
+    if (!(sr1 & STATUS_1_FRAME_COMPLETE)) {
+        return ECO_FRAME_WRITE_UNEXPECTED;
+    }
+
+    adlc_write(1, 0b01100001); // CR2: Clear any pending status, prioritise status
+    adlc_write(0, 0b00000010); //Suppress tx interrupts, Enable RX interrupts
+
+    return ECO_FRAME_WRITE_OK;
+}
+
+bool rx_notify(void) {
+    const uint BUFFSIZE = 8000;
+    uint8_t buffer[BUFFSIZE];
+    uint8_t listen_addrs[1];
+    bool got_scout = false;
+
+    listen_addrs[0] = 0x02;
+
+    econet_init();
+
+    while (true) {
+        uint status_reg_1 = adlc_read(REG_STATUS_1);
+
+        if (!(status_reg_1 & (STATUS_1_S2_RD_REQ | STATUS_1_RDA))) {
+            continue;
+        }
+
+        uint status_reg_2 = adlc_read(REG_STATUS_2);
+
+        if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
+            tFrameReadResult read_result = simple_read_frame(buffer, sizeof(buffer), listen_addrs, sizeof(listen_addrs), 100000);
+
+            switch (read_result.status) {
+                case ECO_FRAME_READ_OK: {
+                    if (!got_scout) {
+                        bool ok = parse_notify_scout(buffer, read_result.bytes_read);
+                        if (!ok) {
+                            printf("parse_notify_scout failed\n");
+                            return false;
+                        }
+
+
+                        adlc_write(0, 0b00000000); // Select CR2
+                        adlc_write(1, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
+                        adlc_write(1, 0b11100100); // seems to need calling twice to clear everything
+
+                        // printf("parse_notify_scout ok\n");
+                        // printf("Received:\n");
+                        // for (uint j = 0; j < read_result.bytes_read; j++) {
+                        //     printf("%02x ", buffer[j]);
+                        // }
+                        // printf(".\n\n");
+
+
+                        uint8_t ack_frame[4];
+                        ack_frame[0] = buffer[2];
+                        ack_frame[1] = buffer[3];
+                        ack_frame[2] = buffer[0];
+                        ack_frame[3] = buffer[1];
+
+                        tEconetTxResult tx_result = tx_frame(ack_frame, sizeof(ack_frame));
+                        if (tx_result != ECO_FRAME_WRITE_OK) {
+                            printf("ack scout tx_frame failed code=%u\n", tx_result);
+                            return false;
+                        } else {
+                            // printf("ack scout tx_frame success!\n", tx_result);
+                        }
+
+                        clear_rx();
+
+                        got_scout = true;
+                    } else {
+                        bool ok = parse_notify_data(buffer, read_result.bytes_read);
+                        if (!ok) {
+                            printf("parse_notify_data failed");
+                            return false;
+                        }
+
+                        adlc_write(0, 0b00000000); // Select CR2
+                        adlc_write(1, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
+                        adlc_write(1, 0b11100100); // seems to need calling twice to clear everything
+
+                        // printf("parse_notify_data ok\n");
+                        // printf("Received:\n");
+                        // for (uint j = 0; j < read_result.bytes_read; j++) {
+                        //     printf("%02x ", buffer[j]);
+                        // }
+                        // printf(".\n\n");
+
+                        uint8_t ack_frame[4];
+                        ack_frame[0] = buffer[2];
+                        ack_frame[1] = buffer[3];
+                        ack_frame[2] = buffer[0];
+                        ack_frame[3] = buffer[1];
+
+                        tEconetTxResult tx_result = tx_frame(ack_frame, sizeof(ack_frame));
+                        if (tx_result != ECO_FRAME_WRITE_OK) {
+                            printf("ack data tx_frame failed code=%u\n", tx_result);
+                            return false;
+                        } else {
+                            // printf("ack data tx_frame success!\n\n", tx_result);
+                        }
+
+                        clear_rx();
+
+                        got_scout = false;
+                    }
+
+                    break;
+                }
+                case ECO_FRAME_READ_ERROR_TIMEOUT:
+                    printf("ECO_FRAME_READ_ERROR_TIMEOUT\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_NO_ADDR_MATCH:
+                    //printf("ECO_FRAME_READ_NO_ADDR_MATCH\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_OVERRUN:
+                    printf("ECO_FRAME_READ_ERROR_OVERRUN\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_ABORT:
+                    printf("ECO_FRAME_READ_ERROR_ABORT\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_CRC:
+                    printf("ECO_FRAME_READ_ERROR_CRC\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_OVERFLOW:
+                    printf("ECO_FRAME_READ_ERROR_OVERFLOW\n");
+                    abort_read();
+                    break;
+                case ECO_FRAME_READ_ERROR_UNEXPECTED:
+                    printf("ECO_FRAME_READ_ERROR_OVERFLOW\n");
+                    abort_read();
+                    break;
+                default:
+                    printf("ERRR\n");
+                    abort_read();
+                    break;
+            }
+        }
+
+        if (status_reg_1 & STATUS_1_IRQ) {
+            adlc_irq_reset();
+        }
+    }
+}
 void test_read(void) {
     adlc_init();
     while (true) {
@@ -454,5 +786,6 @@ int main() {
 
     // core0_loop();
     // test_read();
-    simple_sniff();
+    //simple_sniff();
+    rx_notify();
 }
