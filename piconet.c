@@ -349,6 +349,7 @@ void simple_sniff(void) {
 
     uint32_t start_time = 0;
 
+    // TODO: sort harcoded time
     while (start_time == 0 || time_ms() < start_time + 3000) {
         uint status_reg_1 = adlc_read(REG_STATUS_1);
 
@@ -475,47 +476,6 @@ bool parse_notify_scout(uint8_t *buffer, size_t bytes_read) {
     return true;
 }
 
-bool seize_line(void) {
-    uint8_t count, outercount, seized = 0;
-    outercount = 0;
-
-    while (outercount++ < 1 && !seized)
-    {
-        // Attempt to seize line
-        adlc_write_cr2(CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_PRIO_STATUS_ENABLE | CR2_FLAG_IDLE);
-        uint sr2 = adlc_read(REG_STATUS_2);
-
-        // No clock
-        if (sr2 & STATUS_2_NOT_DCD) {
-            printf("[No clock]");
-            return false;
-        }
-
-        print_status2(sr2);
-        count = 0;
-        while (count++ < 5 && (!(sr2 & STATUS_2_INACTIVE_IDLE_RX))) {
-            adlc_write_cr2(CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_PRIO_STATUS_ENABLE | CR2_FLAG_IDLE);
-            sleep_ms(count << 2);
-            sr2 = adlc_read(REG_STATUS_2);
-            print_status2(sr2);
-        }
-
-        if (sr2 & STATUS_2_INACTIVE_IDLE_RX)
-        {
-            adlc_write_cr2(CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_PRIO_STATUS_ENABLE | CR2_FLAG_IDLE | CR2_RTS_CONTROL);
-            adlc_write_cr1(CR1_RX_RESET | CR1_TIE);
-            uint sr1 = adlc_read(REG_STATUS_1);
-            print_status1(sr1);
-            if (!(sr1 & STATUS_1_NOT_CTS)) {
-                return true;
-            }
-        }
-    }
-
-    printf("[Timeout]");
-    return false;
-}
-
 typedef enum eFrameWriteStatus {
     ECO_FRAME_WRITE_OK = 0L,
     ECO_FRAME_WRITE_UNDERRUN,
@@ -533,22 +493,15 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
 
     uint32_t time_start_ms = time_ms();
 
-    adlc_write(0, 0b00000000); // Disable RX interrupts
+    adlc_write_cr1(0b00000000); // Disable RX interrupts
 
     while (!(adlc_read(REG_STATUS_1) & STATUS_1_FRAME_COMPLETE)) {
         if (time_ms() > time_start_ms + timeout_ms) {
             return ECO_FRAME_WRITE_READY_TIMEOUT;
         }
 
-        adlc_write(1, 0b11100101); // CR2: raise RTS, clear TX and RX status, flag fill and Prioritise status
+        adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE);
     };
-    
-
-    // printf("sending: ");
-    // for (uint j = 0; j < len; j++) {
-    //     printf("%02x ", buffer[j]);
-    // }
-    // printf("\n");
 
     for (uint ptr = 0; ptr < len; ptr++) {
         // While not FC/TDRA set, loop until it is - or we get an error
@@ -568,33 +521,18 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
 
             if (time_ms() > time_start_ms + timeout_ms) {
                 // move to reset_irq or similar
-                adlc_write(0, 0b00000010); // Enable RX interrupts, select CR2
-                adlc_write(1, 0b01100001); // Clear RX and TX status, prioritise status 
+                adlc_write_cr1(0b00000000); // Disable TX interrupts
+                adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
 
                 return ECO_FRAME_WRITE_READY_TIMEOUT;
             }
         }
 
-        adlc_write(REG_FIFO, buffer[ptr]);
+        adlc_write_fifo(buffer[ptr]);
     }
 
-/*
-#define CR2_PRIO_STATUS_ENABLE    1
-#define CR2_2_BYTE_TRANSFER       2
-#define CR2_FLAG_IDLE             4
-#define CR2_FRAME_COMPLETE        8
-#define CR2_TX_LAST_DATA          16
-#define CR2_CLEAR_RX_STATUS       32
-#define CR2_CLEAR_TX_STATUS       64
-#define CR2_RTS_CONTROL           128
-*/
-//econet_write_cr(ECONET_GPIO_CR2, ECONET_GPIO_C2_TXLAST | ECONET_GPIO_C2_FC | ECONET_GPIO_C2_FLAGIDLE | ECONET_GPIO_C2_PSE); // No RX status reset
-
-
-    // CR2_PRIO_STATUS_ENABLE | CR2_FRAME_COMPLETE | CR2_TX_LAST_DATA | CR2_CLEAR_RX_STATUS
-    adlc_write(1, CR2_TX_LAST_DATA | CR2_FRAME_COMPLETE | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE); 
-    // was: 0b00111001); // Tell the ADLC that was the last byte, and clear flag fill modes and RTS. 
-    adlc_write(0, 0b00000100); // Tx interrupt enable
+    adlc_write_cr2(CR2_TX_LAST_DATA | CR2_FRAME_COMPLETE | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE); 
+    adlc_write_cr1(CR1_TIE);
 
     // wait for IRQ
     while (true) {
@@ -611,8 +549,8 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
         return ECO_FRAME_WRITE_UNEXPECTED;
     }
 
-    adlc_write(1, 0b01100001); // CR2: Clear any pending status, prioritise status
-    adlc_write(0, 0b00000010); //Suppress tx interrupts, Enable RX interrupts
+    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
+    adlc_write_cr1(CR1_RIE);
 
     return ECO_FRAME_WRITE_OK;
 }
@@ -648,18 +586,8 @@ bool rx_notify(void) {
                             return false;
                         }
 
-
-                        adlc_write(0, 0b00000000); // Select CR2
-                        adlc_write(1, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
-                        adlc_write(1, 0b11100100); // seems to need calling twice to clear everything
-
-                        // printf("parse_notify_scout ok\n");
-                        // printf("Received:\n");
-                        // for (uint j = 0; j < read_result.bytes_read; j++) {
-                        //     printf("%02x ", buffer[j]);
-                        // }
-                        // printf(".\n\n");
-
+                        adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE);
+                        adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET | CR1_RX_FRAME_DISCONTINUE | CR1_TIE);
 
                         uint8_t ack_frame[4];
                         ack_frame[0] = buffer[2];
@@ -671,8 +599,6 @@ bool rx_notify(void) {
                         if (tx_result != ECO_FRAME_WRITE_OK) {
                             printf("ack scout tx_frame failed code=%u\n", tx_result);
                             return false;
-                        } else {
-                            // printf("ack scout tx_frame success!\n", tx_result);
                         }
 
                         clear_rx();
@@ -685,16 +611,8 @@ bool rx_notify(void) {
                             return false;
                         }
 
-                        adlc_write(0, 0b00000000); // Select CR2
-                        adlc_write(1, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
-                        adlc_write(1, 0b11100100); // seems to need calling twice to clear everything
-
-                        // printf("parse_notify_data ok\n");
-                        // printf("Received:\n");
-                        // for (uint j = 0; j < read_result.bytes_read; j++) {
-                        //     printf("%02x ", buffer[j]);
-                        // }
-                        // printf(".\n\n");
+                        adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE);
+                        adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET | CR1_RX_FRAME_DISCONTINUE | CR1_TIE);
 
                         uint8_t ack_frame[4];
                         ack_frame[0] = buffer[2];
@@ -786,6 +704,6 @@ int main() {
 
     // core0_loop();
     // test_read();
-    //simple_sniff();
+    // simple_sniff();
     rx_notify();
 }

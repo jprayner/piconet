@@ -61,18 +61,22 @@ void adlc_write_cr1(uint data_val) {
 }
 
 void adlc_write_cr2(uint data_val) {
-    adlc_write(0, 0b11000000); // Select CR2
+    adlc_write(0, 0b00000000); // Select CR2
     adlc_write(1, data_val);
 }
 
 void adlc_write_cr3(uint data_val) {
-    adlc_write(0, 0b11000001); // Select CR3/4
+    adlc_write(0, 0b00000001); // Select CR3/4
     adlc_write(1, data_val);
 }
 
 void adlc_write_cr4(uint data_val) {
-    adlc_write(0, 0b11000001); // Select CR3/4
+    adlc_write(0, 0b00000001); // Select CR3/4
     adlc_write(3, data_val);
+}
+
+void adlc_write_fifo(uint data_val) {
+    adlc_write(REG_FIFO, data_val);
 }
 
 void adlc_reset(void) {
