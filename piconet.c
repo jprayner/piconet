@@ -51,81 +51,13 @@ typedef struct
 queue_t command_queue;
 queue_t event_queue;
 
-void print_status1(uint value) {
-    printf("Status register 1: 0x%2x ", value);
-    printf("[ ");
-
-    if (value & STATUS_1_RDA) {
-        printf(" RDA");
-    }
-    if (value & STATUS_1_S2_RD_REQ) {
-        printf(" RD_REQ");
-    }
-    if (value & STATUS_1_LOOP) {
-        printf(" LOOP");
-    }
-    if (value & STATUS_1_FLAG_DET) {
-        printf(" FLAG");
-    }
-    if ((value & STATUS_1_NOT_CTS) == 0) {
-        printf(" CTS");
-    }
-    if (value & STATUS_1_TX_UNDERRUN) {
-        printf(" URUN");
-    }
-    if (value & STATUS_1_FRAME_COMPLETE) {
-        printf(" FRM_COMP");
-    }
-    if (value & STATUS_1_IRQ) {
-        printf(" IRQ");
-    }
-
-    printf(" ]\n");
-}
-
-void print_status2(uint value) {
-    printf("Status register 2: 0x%2x ", value);
-    printf("[ ");
-
-    if (value & STATUS_2_ADDR_PRESENT) {
-        printf(" ADDR");
-    }
-    if (value & STATUS_2_FRAME_VALID) {
-        printf(" VALID");
-    }
-    if (value & STATUS_2_INACTIVE_IDLE_RX) {
-        printf(" IDLE");
-    }
-    if (value & STATUS_2_ABORT_RX) {
-        printf(" ABRT");
-    }
-    if (value & STATUS_2_FCS_ERROR) {
-        printf(" FCS_ERR");
-    }
-    if ((value & STATUS_2_NOT_DCD) == 0) {
-        printf(" DCD");
-    }
-    if (value & STATUS_2_RX_OVERRUN) {
-        printf(" OVERRUN");
-    }
-    if (value & STATUS_2_RDA) {
-        printf(" RDA");
-    }
-
-    printf(" ]\n");
-}
-
 static void frame_dump(tEconetRxResultDetail detail) {
     int i;
     for (i = 0; i < detail.length; i++) {
         printf("%02x ", detail.buffer[i]);
     }
     printf("\n");
-    print_status1(detail.sr1);
-    print_status2(detail.sr2);
-
 }
-
 
 void core1_entry() {
     command_t cmd;
@@ -202,19 +134,6 @@ void core0_loop() {
                             print_status2(event.rxEvent.error.sr2);
                             printf("\n");
                             break;
-                        case PICONET_RX_RESULT_SCOUT :
-                            printf("SCOUT: ");
-                            frame_dump(event.rxEvent.detail);
-                            
-                            // command_t cmd;
-                            // cmd.type = PICONET_CMD_ACK;
-                            // cmd.ack.senderStation = event.rxEvent.detail.buffer[2];
-                            // cmd.ack.senderNetwork = event.rxEvent.detail.buffer[3];
-                            // cmd.ack.controlByte = event.rxEvent.detail.buffer[4];
-                            // cmd.ack.port = event.rxEvent.detail.buffer[5];
-                            // queue_add_blocking(&command_queue, &cmd);
-
-                            break;
                         case PICONET_RX_RESULT_BROADCAST :
                             printf("BCAST: ");
                             frame_dump(event.rxEvent.detail);
@@ -223,7 +142,7 @@ void core0_loop() {
                             printf("IMMED: ");
                             frame_dump(event.rxEvent.detail);
                             break;
-                        case PICONET_RX_RESULT_FRAME :
+                        case PICONET_RX_RESULT_TRANSMIT :
                             printf("FRAME: ");
                             frame_dump(event.rxEvent.detail);
                             break;
@@ -241,102 +160,7 @@ void core0_loop() {
         }
     }
 }
-
-void abort_read(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
-    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
-}
-
-void clear_rx(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
-}
-
-typedef enum eFrameReadStatus {
-    ECO_FRAME_READ_OK = 0L,
-    ECO_FRAME_READ_NO_ADDR_MATCH,
-    ECO_FRAME_READ_ERROR_CRC,
-    ECO_FRAME_READ_ERROR_OVERRUN,
-    ECO_FRAME_READ_ERROR_ABORT,
-    ECO_FRAME_READ_ERROR_TIMEOUT,
-    ECO_FRAME_READ_ERROR_OVERFLOW,
-    ECO_FRAME_READ_ERROR_UNEXPECTED,
-} tFrameReadStatus;
-
-typedef struct
-{
-    tFrameReadStatus status;
-    size_t bytes_read;
-} tFrameReadResult;
-
-tFrameReadResult simple_read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms) {
-    tFrameReadResult result = {
-        ECO_FRAME_READ_ERROR_UNEXPECTED,
-        0
-    };
-    uint stat = 0;
-
-    if (buffer_len == 0) {
-        result.status = ECO_FRAME_READ_ERROR_OVERFLOW;
-        return result;
-    }
-
-    // First byte should be address
-    buffer[result.bytes_read++] = adlc_read(REG_FIFO);
-    if (addr_len > 0) {
-        bool discard = true;
-        for (uint i = 0; i < addr_len; i++) {
-            if (buffer[result.bytes_read - 1] == addr[i]) {
-                discard = false;
-                break;
-            }
-        }
-
-        if (discard) {
-            result.status = ECO_FRAME_READ_NO_ADDR_MATCH;
-            return result;
-        }
-    }
-
-    uint32_t time_start_ms = time_ms();
-
-    bool frame_valid = false;
-    while (!frame_valid) {
-        do {
-            if (time_ms() > time_start_ms + timeout_ms) {
-                result.status = ECO_FRAME_READ_ERROR_TIMEOUT;
-                return result;
-            }
-
-            stat = adlc_read(REG_STATUS_2);
-        } while (!(stat & (STATUS_2_RDA | STATUS_2_FRAME_VALID | STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)));
-
-        if (stat & (STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)) {
-            if (stat & STATUS_2_ABORT_RX) {
-                result.status = ECO_FRAME_READ_ERROR_ABORT;
-            } else if (stat & STATUS_2_FCS_ERROR) {
-                result.status = ECO_FRAME_READ_ERROR_CRC;
-            } else if (stat & STATUS_2_RX_OVERRUN) {
-                result.status = ECO_FRAME_READ_ERROR_OVERRUN;
-            }
-            return result;
-        }
-
-        if (stat & (STATUS_2_FRAME_VALID | STATUS_2_RDA)) {
-            if (result.bytes_read >= buffer_len) {
-                result.status = ECO_FRAME_READ_ERROR_OVERFLOW;
-                return result;
-            }
-
-            buffer[result.bytes_read++] = adlc_read(REG_FIFO);
-        }
-
-        frame_valid = (stat & STATUS_2_FRAME_VALID);
-    }
-
-    result.status = ECO_FRAME_READ_OK;
-    return result;
-}
-
+/*
 void simple_sniff(void) {
     const uint NUM_BUFFS = 20;
     const uint BUFFSIZE = 8000;
@@ -425,6 +249,7 @@ void simple_sniff(void) {
         printf(".\n");
     }
 }
+*/
 
 bool parse_notify_data(uint8_t *buffer, size_t bytes_read) {
     // printf("parse_notify_data\n");
@@ -475,86 +300,7 @@ bool parse_notify_scout(uint8_t *buffer, size_t bytes_read) {
 
     return true;
 }
-
-typedef enum eFrameWriteStatus {
-    ECO_FRAME_WRITE_OK = 0L,
-    ECO_FRAME_WRITE_UNDERRUN,
-    ECO_FRAME_WRITE_COLLISION,
-    ECO_FRAME_WRITE_READY_TIMEOUT,
-    ECO_FRAME_WRITE_UNEXPECTED,
-} tFrameWriteStatus;
-
-tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
-    static uint timeout_ms = 2000;
-	char tdra_flag;
-	int loopcount = 0;
-    int tdra_counter;
-    uint sr1;
-
-    uint32_t time_start_ms = time_ms();
-
-    adlc_write_cr1(0b00000000); // Disable RX interrupts
-
-    while (!(adlc_read(REG_STATUS_1) & STATUS_1_FRAME_COMPLETE)) {
-        if (time_ms() > time_start_ms + timeout_ms) {
-            return ECO_FRAME_WRITE_READY_TIMEOUT;
-        }
-
-        adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE);
-    };
-
-    for (uint ptr = 0; ptr < len; ptr++) {
-        // While not FC/TDRA set, loop until it is - or we get an error
-        while (true) {
-            uint sr1 = adlc_read(REG_STATUS_1);
-            if (sr1 & STATUS_1_TX_UNDERRUN) {
-                return ECO_FRAME_WRITE_UNDERRUN;
-            }
-            if (sr1 & STATUS_1_FRAME_COMPLETE) {
-                break; // We have TDRA
-            }
-            // if (sr1 & 192) { // Some other error JIM NOTE: looks wrong mask to me
-            //     printSR1(sr1); 
-            //     resetIRQ(); 
-            //     return(false);
-            // };
-
-            if (time_ms() > time_start_ms + timeout_ms) {
-                // move to reset_irq or similar
-                adlc_write_cr1(0b00000000); // Disable TX interrupts
-                adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
-
-                return ECO_FRAME_WRITE_READY_TIMEOUT;
-            }
-        }
-
-        adlc_write_fifo(buffer[ptr]);
-    }
-
-    adlc_write_cr2(CR2_TX_LAST_DATA | CR2_FRAME_COMPLETE | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE); 
-    adlc_write_cr1(CR1_TIE);
-
-    // wait for IRQ
-    while (true) {
-        sr1 = adlc_read(REG_STATUS_1);
-        if (sr1 & STATUS_1_IRQ) {
-            break;
-        }
-        if (time_ms() > time_start_ms + timeout_ms) {
-            return ECO_FRAME_WRITE_READY_TIMEOUT;
-        }
-    };
-
-    if (!(sr1 & STATUS_1_FRAME_COMPLETE)) {
-        return ECO_FRAME_WRITE_UNEXPECTED;
-    }
-
-    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
-    adlc_write_cr1(CR1_RIE);
-
-    return ECO_FRAME_WRITE_OK;
-}
-
+/*
 bool rx_notify(void) {
     const uint BUFFSIZE = 8000;
     uint8_t buffer[BUFFSIZE];
@@ -675,6 +421,8 @@ bool rx_notify(void) {
         }
     }
 }
+*/
+
 void test_read(void) {
     adlc_init();
     while (true) {
@@ -696,14 +444,49 @@ void test_write(void) {
     }
 }
 
+void test_read_poll(void) {
+    const uint BUFFSIZE = 2048;
+    uint8_t buffer[BUFFSIZE];
+
+    econet_init();
+
+    while (true) {
+        tEconetRxResult result = receive(buffer, BUFFSIZE);
+
+        switch (result.type) {
+            case PICONET_RX_RESULT_NONE :
+                break;
+            case PICONET_RX_RESULT_ERROR :
+                printf("Error %u\n", result.error.type);
+                break;
+            case PICONET_RX_RESULT_BROADCAST :
+                printf("BCAST: ");
+                frame_dump(result.detail);
+                break;
+            case PICONET_RX_RESULT_IMMEDIATE_OP :
+                printf("IMMED: ");
+                frame_dump(result.detail);
+                break;
+            case PICONET_RX_RESULT_TRANSMIT :
+                printf("FRAME: ");
+                frame_dump(result.detail);
+                break;
+            default:
+                printf("WTF2 %u\n", result.type);
+                break;
+        }
+    }
+}
+
 int main() {
     stdio_init_all();
 
     sleep_ms(2000); // give client a chance to reconnect
-    printf("Hello world 31!\n");
+    printf("Hello world 32!\n");
 
     // core0_loop();
     // test_read();
     // simple_sniff();
-    rx_notify();
+    // rx_notify();
+    test_read_poll();
 }

@@ -4,8 +4,14 @@
 #include "pico/stdlib.h"
 
 typedef enum eEconetError {
-    PICONET_ERROR_MISC = 0L,
-    PICONET_ERROR_INVALID_FRAME
+    PICONET_RX_ERROR_MISC = 0L,
+    PICONET_RX_ERROR_MISC_CRC,
+    PICONET_RX_ERROR_MISC_OVERRUN,
+    PICONET_RX_ERROR_MISC_ABORT,
+    PICONET_RX_ERROR_MISC_TIMEOUT,
+    PICONET_RX_ERROR_MISC_OVERFLOW,
+    PICONET_RX_ERROR_SCOUT_ACK,
+    PICONET_RX_ERROR_DATA_ACK
 } tEconetError;
 
 typedef struct EconetErrorDetail
@@ -18,18 +24,15 @@ typedef struct EconetErrorDetail
 typedef enum eEconetRxResultType {
     PICONET_RX_RESULT_NONE = 0L,
     PICONET_RX_RESULT_ERROR,
-    PICONET_RX_RESULT_SCOUT,
     PICONET_RX_RESULT_BROADCAST,
     PICONET_RX_RESULT_IMMEDIATE_OP,
-    PICONET_RX_RESULT_FRAME
+    PICONET_RX_RESULT_TRANSMIT
 } tEconetRxResultType;
 
 typedef struct EconetRxResultDetail
 {
-    uint *buffer; // TODO: make byte!
+    uint8_t *buffer;
     size_t length;
-    uint sr1;
-    uint sr2;
 } tEconetRxResultDetail;
 
 typedef enum eEconetTxResult {
@@ -50,7 +53,6 @@ typedef struct EconetRxResult
 
 void econet_init(void);
 tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool immediate);
-tEconetRxResult receive(void);
-tEconetTxResult ack_scout(uint sender_station, uint sender_network, uint control_byte, uint port);
+tEconetRxResult receive(uint8_t *buffer, size_t buffer_len);
 
 #endif

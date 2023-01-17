@@ -5,11 +5,6 @@
 
 static int BUFFSIZE = 16384;
 
-uint config_Station = 2;
-uint config_Net = 0; // TODO: Not strictly speaking config, Needs a bridge discovery to fix this later on
-
-bool got_scout = false;
-
 uint rx_buff[16384]; // TODO should match BUFFSIZE
 uint scout_buff[8];
 uint ack_buff[8];
@@ -18,486 +13,447 @@ uint cfg_scout_timeout = 100;
 uint cfg_ack_timeout = 200;
 uint cfg_tx_begin_timeout = 5000;
 
+uint8_t listen_addresses[] = { 0x00, 0x02, 0xff };
+
+typedef enum e_frame_read_status {
+    ECO_FRAME_READ_OK = 0L,
+    ECO_FRAME_READ_NO_ADDR_MATCH,
+    ECO_FRAME_READ_ERROR_CRC,
+    ECO_FRAME_READ_ERROR_OVERRUN,
+    ECO_FRAME_READ_ERROR_ABORT,
+    ECO_FRAME_READ_ERROR_TIMEOUT,
+    ECO_FRAME_READ_ERROR_OVERFLOW,
+    ECO_FRAME_READ_ERROR_UNEXPECTED,
+} t_frame_read_status;
+
+typedef struct
+{
+    t_frame_read_status status;
+    size_t bytes_read;
+} t_frame_read_result;
+
+t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms);
+tEconetRxResult _map_read_frame_result(t_frame_read_status status);
+
 void econet_init(void) {
     adlc_init();
     adlc_irq_reset();
 }
 
-void rx_reset(void) {
-    sleep_us(2); // Give the last byte a moment to drain
-    adlc_write_cr2(0b00100001); // Clear RX status, prioritise status
-}
+typedef struct
+{
+    uint8_t dest_station;
+    uint8_t dest_net;
+    uint8_t src_station;
+    uint8_t src_net;
+    uint8_t ctrl;
+    uint8_t port;
+    uint8_t *frame;
+    size_t frame_len;
+    uint8_t *data;
+    size_t data_len;
+} t_econet_frame;
 
-bool wait_for_idle() {
-    // Wait for network to become idle, returns false if network error or if not idle in 2 seconds.
-    unsigned int byte1;
-    int sr1, sr2;
+typedef enum e_frame_type {
+    ECO_FRAME_TYPE_UNKNOWN = 0L,
+    ECO_FRAME_TYPE_SCOUT,
+    ECO_FRAME_TYPE_ACK,
+    ECO_FRAME_TYPE_IMMEDIATE,
+    ECO_FRAME_TYPE_BROADCAST,
+    ECO_FRAME_TYPE_DATA
+} t_frame_type;
 
-    unsigned long timeOut = time_ms() + cfg_tx_begin_timeout;
+typedef struct
+{
+    t_frame_type type;
+    t_econet_frame frame;
+} t_frame_parse_result;
 
-    sr2 = 0; // Force while loop to run first time
-    while (!(sr2 & STATUS_2_INACTIVE_IDLE_RX)) {
-        sleep_ms(40);
-        sr1 = adlc_read(REG_STATUS_1);
-        sr2 = adlc_read(REG_STATUS_2);
+t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_frame) {
+    t_frame_parse_result result;
 
-        if (sr2 & STATUS_2_NOT_DCD) {
-            return false;
-        }
-        
-        if (time_ms() > timeOut){
-            return false;
-        }
-
-        adlc_irq_reset();
-    }
-
-    return true;
-}
-
-/*
-bool checkAck(){
-
-  uint theirStation = scoutBuff[2];
-  uint theirNet = scoutBuff[3];
-  
-  int ptr=0;
-  uint stat = 0;
-  bool frame=true;
-  static bool gotScout = false; // This maintains our state in the 4 way handshake between calls.
-
-  // First byte should be address
-  rx_buff[0] = readFIFO();
-
-  if (rx_buff[0] != config_Station) {
-      // If frame is not for me, then bail out
-      resetIRQ();
-      return false;
-  }
-  
-  ptr++;
-
-  while (frame){
-    
-    // Now check the status register
-    do {
-      delayMicroseconds(1); // Even at the fastest clock rate, it still takes several uS to get another byte.      
-      stat=readSR2();
-    } while (!(stat & 250)); // While no errors, or available data - keep polling  
-
-    rx_buff[ptr]=readFIFO();
-    if (ptr < BUFFSIZE) {ptr++;}; //keep overwriting last byte for now until I do this properly!
-
-
-    if (stat & 122 ) frame=false; // If error or end of frame bits set, drop out
-  } // End of while in frame - Data Available with no error bits or end set
- 
-
-   // Frame is valid
-   if(ptr!=4) return(false); // frame is wrong size for an ack
-   if((rx_buff[1] == theirNet) && (rx_buff[0] == theirStation)) return (true);
- 
-    return (false);   // Not bothering with any other error checking - if we are here the frame is wrong regardless of cause.
-}
-*/
-
-bool wait_for_ack() {
-    uint statReg1, statReg2;
-    bool ackResult = false, inLoop = true;
-
-    unsigned long timeOut = time_ms() + cfg_ack_timeout;
-
-    adlc_irq_reset();
-
-    // IRQ polling loop
-    while (inLoop) {
-        if (time_ms() > timeOut) { 
-            inLoop = false;
-        }
-
-        if (adlc_get_irq()) {
-            // There is an IRQ to service
-            statReg1 = adlc_read(REG_STATUS_1);
-
-            if (statReg1 & 2){
-                statReg2 = adlc_read(REG_STATUS_2);
-
-                if (statReg2 & STATUS_2_ADDR_PRESENT) {
-                    // Address present in FIFO, so fetch it and the rest of frame
-
-                    //TODO
-                    //ackResult = checkAck();
-                    ackResult = true;
-                }
-                if (statReg2 & STATUS_2_FRAME_VALID) {
-                    // Frame complete - not expecting a frame here
-                    adlc_read(REG_FIFO);
-                    adlc_irq_reset();
-                }
-                if (statReg2 & STATUS_2_INACTIVE_IDLE_RX) {
-                    // Inactive idle
-                    adlc_irq_reset();
-                }
-                if (statReg2 & STATUS_2_ABORT_RX) {
-                    // TX abort received
-                    adlc_irq_reset();
-                }
-                if (statReg2 & STATUS_2_FCS_ERROR) {
-                    // Frame error
-                    adlc_irq_reset();
-                }
-                if (statReg2 & STATUS_2_NOT_DCD) {
-                    // Carrier loss
-                    // Serial.println("No clock!");
-                    adlc_irq_reset();
-                }
-                if (statReg2 & STATUS_2_RX_OVERRUN) {
-                    // Overrun
-                    adlc_irq_reset();
-                }
-                if (statReg2 & STATUS_2_RDA) {
-                    // RX data available
-                    adlc_read(REG_FIFO);
-                }
-            } else {
-                // Something else in SR1 needs servicing        
-                if (statReg1 & STATUS_1_RDA) {
-                    // Not expecting data, so just read and ignore it!
-                    adlc_read(REG_FIFO);
-                }
-
-                // Reset IRQ as not expecting anything!
-                adlc_irq_reset();
-            }
-        }
-
-        if (ackResult) {
-            inLoop = false;
-        }
-    }
-
-    return ackResult;
-}
-
-void ack_rx() {
-    // Generate an acknowledgement packet 
-    uint tx_buff[4];
-
-    // Build the ack frame from the data in rx buffer  
-    tx_buff[0] = rx_buff[2];
-    tx_buff[1] = rx_buff[3];
-    tx_buff[2] = rx_buff[0];
-    tx_buff[3] = rx_buff[1];
-
-    if (!transmit((uint *) &tx_buff, 4, false, false, false)) {
-
-    }
-
-    return;
-}
-
-tEconetTxResult ack_scout(uint sender_station, uint sender_network, uint control_byte, uint port) {
-    uint tx_buff[4];
-
-    tx_buff[0] = sender_station;
-    tx_buff[1] = sender_network;
-    tx_buff[2] = control_byte;
-    tx_buff[3] = port;
-
-    return transmit((uint *) &tx_buff, 4, false, false, false);
-}
-
-//TODO: remove scout param
-tEconetTxResult transmit(uint *buff, int bytes, bool getAck, bool scout, bool immediate) {
-    int sr1, sr2;
-    unsigned long timeOut;
-    bool ackResult = false, done = false;
-
-    adlc_write(REG_CONTROL_1, 0b00000000); // Disable RX interrupts
-
-    timeOut = time_ms() + cfg_tx_begin_timeout;
-
-    while (!(adlc_read(REG_STATUS_1) & 64)) { // If we don't have TDRA, clear status until we do!  
-        adlc_write(REG_CONTROL_2, 0b11100101); // Raise RTS, clear TX and RX status, flag fill and Prioritise status
-
-        if (time_ms() > timeOut) {
-            adlc_irq_reset();
-            return PICONET_TX_RESULT_ERROR_TIMEOUT;
-        }
-    }
-
-    for (int buffPtr = 0; buffPtr < bytes; buffPtr += 1) {
-        // While not TDRA set, loop until it is - or we get an error
-        while (true) {
-            sr1 = adlc_read(REG_STATUS_1);
-
-            if (sr1 & STATUS_1_FRAME_COMPLETE) {
-                // We have TDRA
-                break;
-            }
-
-            if (sr1 & 192) {
-                // Some other error
-                //printSR1(sr1); 
-                adlc_irq_reset(); 
-                return PICONET_TX_RESULT_ERROR_MISC;
-            }
-
-            if (time_ms() > timeOut) {
-                adlc_irq_reset();
-                return PICONET_TX_RESULT_ERROR_TIMEOUT;
-            }
-        }
-  
-        // Now we are ready, write the byte.
-        adlc_write(REG_FIFO, buff[buffPtr]);
-    } // End of for loop to tx bytes
-
-    adlc_write(REG_CONTROL_2, 0b00111001); // Tell the ADLC that was the last byte, and clear flag fill modes and RTS. 
-    adlc_write(REG_CONTROL_1, 0b00000100); // Tx interrupt enable
-  
-    // Do a last check for errors
-    while (!adlc_get_irq()) {}; // Wait for IRQ
- 
-    sr1 = adlc_read(REG_STATUS_1);
-    if (!sr1 & 64) {
-        // Something other than Frame complete happened
-        // printSR1(sr1);
-        adlc_irq_reset();
-        return false;
-    }
-
-    adlc_write(REG_CONTROL_2, 0b01100001); // Clear any pending status, prioritise status
-    adlc_write(REG_CONTROL_1, 0b00000010); // Suppress tx interrupts, Enable RX interrupts
-
-    if (!getAck) {
-        // If ack not expected, return now
-        return PICONET_TX_RESULT_OK;
-    }
-
-    if (wait_for_ack()) {
-        return PICONET_TX_RESULT_OK;
-    }
-
-    return PICONET_TX_RESULT_ERROR_NO_ACK;
-}
-
-tEconetRxResult read_frame(void) {
-    tEconetRxResult result;
-    result.type = PICONET_RX_RESULT_NONE;
-
-    uint ptr = 0;
-    uint stat = 0;
-    bool frame = true;
-
-    uint rxControlByte;
-    uint rxPort;
-
-    uint scout_timeout = 0;
-
-    // First byte should be address
-    rx_buff[0] = adlc_read(REG_FIFO);
-
-    // TODO: being nosey
-    /*
-    if (rx_buff[0] != config_Station && rx_buff[0] != 255 ) {
-        // If frame is not for me, or a broadcast, then bail out
-        adlc_irq_reset();
-        return;
-    }
-    */
-
-    // Wait for second byte (net address) 
-    do {
-        stat = adlc_read(REG_STATUS_2);
-    } while (!(stat & 0b11111010)); // While no errors, or available data - keep polling
-
-    rx_buff[1] = adlc_read(REG_FIFO);
-
-    if (rx_buff[1] != config_Net && rx_buff[1] != 0 && !(rx_buff[1] >252) ) {
-        // If frame is not addressed to my network, or a broadcast, then bail out
-        // Nets:
-        //    255 - global short broadcast (8 bytes)
-        //    254 - global large broadcast (1020/1024 maximum)
-        //    253 - local large broadcast  
-        adlc_irq_reset();
+    if (len < 4) {
+        result.type = ECO_FRAME_TYPE_UNKNOWN;
         return result;
     }
 
-    ptr = 2;
+    result.frame.dest_station = buffer[0];
+    result.frame.dest_net = buffer[1];
+    result.frame.src_station = buffer[2];
+    result.frame.src_net = buffer[3];
+    result.frame.frame = buffer;
+    result.frame.frame_len = len;
+    result.frame.data = buffer[4];
+    result.frame.data_len = len - 4;
 
-    if (time_ms() > scout_timeout && got_scout) {
-        got_scout = false;
-    }
-
-    while (frame) {
-        // Now check the status register
-        do {
-            stat = adlc_read(REG_STATUS_2);
-        } while (!(stat & 0b11111010)); // While no errors, or available data - keep polling  
-
-        rx_buff[ptr] = adlc_read(REG_FIFO);
-        if (ptr < BUFFSIZE) {
-            ptr++;
-        } //TODO: keep overwriting last byte for now until I do this properly and abort the rx!
-
-        if (stat & 0b01111010) {
-            // Error or end of frame bits set so drop out
-            frame = false;
-        }
-    } // End of while in frame - Data Available with no error bits or end set
- 
-
-    if (stat & STATUS_2_FRAME_VALID) { 
-        // Frame is valid
-  
-        if (rx_buff[0] == 255 || rx_buff[0] == 0) {
-            // Broadcast frame - treat specially, then drop out of receive flow
-            result.type = PICONET_RX_RESULT_BROADCAST;
-            result.detail.buffer = (uint *) &rx_buff;
-            result.detail.length = ptr;
+    if (!is_opening_frame) {
+        if (len == 4) {
+            result.type = ECO_FRAME_TYPE_ACK;
             return result;
-            // TODO: could prolly fall-through here but let's get it working first!
-        } else {
-            result.type = PICONET_RX_RESULT_FRAME;
-            result.detail.buffer = (uint *) &rx_buff;
-            result.detail.length = ptr;
-
-            // // Still here so a frame addressed to me - flag fill while we work out what to do with it
-            
-            // adlc_flag_fill(); // Flag fill and reset statuses - seems to need calling twice to clear everything
-            // adlc_flag_fill();
-        
-            // if (got_scout == false) {
-            //     // Am expecting a scout here, but could be an immediate op
-            //     if (ptr > 7) {
-            //         // Too big for a scout so must be an immediate operation
-            //         result.type = PICONET_RX_RESULT_IMMEDIATE_OP;
-            //         result.detail.buffer = (uint *) &rx_buff;
-            //         result.detail.length = ptr;
-            //     } else {
-            //         // Acknowledge the scout, and set flag for next run
-                    
-            //         // rx_buff[2] = Sender station
-            //         // rx_buff[3] = Sender network
-            //         // rx_buff[4] = ControlByte
-            //         // rx_buff[5] = Port
-                    
-            //         // Make a note of these, as we won't get them again in the payload
-            //         rxControlByte = rx_buff[4];
-            //         rxPort = rx_buff[5];
-
-            //         // Only acknowledge if we are expecting something on the port
-            //         if (true) { // (portInUse[rxPort]) { // TODO
-            //             ack_rx();
-            //             got_scout = true;
-
-            //             // TODO: dubious - won't this always be time_ms as scout_timeout initialised as 0??
-            //             scout_timeout = time_ms() + cfg_scout_timeout;
-
-            //             result.type = PICONET_RX_RESULT_SCOUT;
-            //             result.detail.buffer = (uint *) &rx_buff;
-            //             result.detail.length = ptr;
-            //         }
-            //     }
-            // } else {
-            //     // Have got a payload after the scout, acknowledge and process
-            //     ack_rx();
-            //     got_scout = false;
-
-            //     result.type = PICONET_RX_RESULT_FRAME;
-            //     result.detail.buffer = (uint *) &rx_buff;
-            //     result.detail.length = ptr;
-            // }
         }
 
-        // TODO: remove me
-        result.detail.sr1 = adlc_read(REG_STATUS_1);
-        result.detail.sr2 = adlc_read(REG_STATUS_2);
-    } else {
-        // Frame not valid - what happened?
-        uint sr1 = adlc_read(REG_STATUS_1);
-        uint sr2 = adlc_read(REG_STATUS_2);
-
-        result.type = PICONET_RX_RESULT_ERROR;
-        result.error.type = PICONET_ERROR_INVALID_FRAME;
-        result.error.sr1 = sr1;
-        result.error.sr2 = sr2;
-
-        got_scout = false; 
+        result.type = ECO_FRAME_TYPE_DATA;
+        result.frame.data = buffer[4];
+        result.frame.data_len = len - 4;
+        return result;
     }
 
-    // Do a final clear of any outstanding status bits
-    sleep_us(1);  
-    rx_reset();
+    if (len < 6) {
+        result.type = ECO_FRAME_TYPE_UNKNOWN;
+        return result;
+    }
+
+    result.frame.ctrl = buffer[4];
+    result.frame.port = buffer[5];
+    result.frame.data = buffer[6];
+    result.frame.data_len = len - 6;
+
+    if ((result.frame.dest_station == 0x00) || (result.frame.dest_station == 0xff)) {
+        result.type = ECO_FRAME_TYPE_BROADCAST;
+    } else if (len == 6) {
+        result.type = ECO_FRAME_TYPE_SCOUT;
+    } else if (result.frame.port == 0 && len > 6) {
+        result.type = ECO_FRAME_TYPE_IMMEDIATE;
+    } else {
+        result.type = ECO_FRAME_TYPE_UNKNOWN;
+    }
 
     return result;
 }
 
-tEconetRxResult receive(void) {
-    int do_irq_reset = false;
+typedef enum eFrameWriteStatus {
+    ECO_FRAME_WRITE_OK = 0L,
+    ECO_FRAME_WRITE_UNDERRUN,
+    ECO_FRAME_WRITE_COLLISION,
+    ECO_FRAME_WRITE_READY_TIMEOUT,
+    ECO_FRAME_WRITE_UNEXPECTED,
+} tFrameWriteStatus;
+
+tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
+    static uint timeout_ms = 2000;
+	char tdra_flag;
+	int loopcount = 0;
+    int tdra_counter;
+    uint sr1;
+
+    uint32_t time_start_ms = time_ms();
+
+    adlc_write_cr1(0b00000000); // Disable RX interrupts
+
+    while (!(adlc_read(REG_STATUS_1) & STATUS_1_FRAME_COMPLETE)) {
+        if (time_ms() > time_start_ms + timeout_ms) {
+            return ECO_FRAME_WRITE_READY_TIMEOUT;
+        }
+
+        adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE);
+    };
+
+    for (uint ptr = 0; ptr < len; ptr++) {
+        // While not FC/TDRA set, loop until it is - or we get an error
+        while (true) {
+            uint sr1 = adlc_read(REG_STATUS_1);
+            if (sr1 & STATUS_1_TX_UNDERRUN) {
+                return ECO_FRAME_WRITE_UNDERRUN;
+            }
+            if (sr1 & STATUS_1_FRAME_COMPLETE) {
+                break; // We have TDRA
+            }
+            // if (sr1 & 192) { // Some other error JIM NOTE: looks wrong mask to me
+            //     printSR1(sr1); 
+            //     resetIRQ(); 
+            //     return(false);
+            // };
+
+            if (time_ms() > time_start_ms + timeout_ms) {
+                // move to reset_irq or similar
+                adlc_write_cr1(0b00000000); // Disable TX interrupts
+                adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
+
+                return ECO_FRAME_WRITE_READY_TIMEOUT;
+            }
+        }
+
+        adlc_write_fifo(buffer[ptr]);
+    }
+
+    adlc_write_cr2(CR2_TX_LAST_DATA | CR2_FRAME_COMPLETE | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE); 
+    adlc_write_cr1(CR1_TIE);
+
+    // wait for IRQ
+    while (true) {
+        sr1 = adlc_read(REG_STATUS_1);
+        if (sr1 & STATUS_1_IRQ) {
+            break;
+        }
+        if (time_ms() > time_start_ms + timeout_ms) {
+            return ECO_FRAME_WRITE_READY_TIMEOUT;
+        }
+    };
+
+    if (!(sr1 & STATUS_1_FRAME_COMPLETE)) {
+        return ECO_FRAME_WRITE_UNEXPECTED;
+    }
+
+    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
+    adlc_write_cr1(CR1_RIE);
+
+    return ECO_FRAME_WRITE_OK;
+}
+
+tFrameWriteStatus _send_ack(t_frame_parse_result *incoming_frame) {
+    adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE);
+    adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET | CR1_RX_FRAME_DISCONTINUE | CR1_TIE);
+
+    uint8_t ack_frame[4];
+    ack_frame[0] = incoming_frame->frame.src_station;
+    ack_frame[1] = incoming_frame->frame.src_net;
+    ack_frame[2] = incoming_frame->frame.dest_station;
+    ack_frame[3] = incoming_frame->frame.dest_net;
+
+    return tx_frame(ack_frame, 4);
+}
+
+bool _wait_frame_start(uint32_t timeout_ms) {
+    uint32_t time_start_ms = time_ms();
+
+    while (true) {
+        while (!(adlc_read(REG_STATUS_1) & STATUS_1_S2_RD_REQ)) {
+            if (time_ms() > time_start_ms + timeout_ms) {
+                return false;
+            }
+        }
+        
+        if (adlc_read(REG_STATUS_2) & STATUS_2_ADDR_PRESENT) {
+            break;
+        }
+
+        adlc_irq_reset();
+    }
+    return true;
+}
+
+tEconetRxResult _rx_result_for_error(tEconetError error) {
+    tEconetRxResult result;
+    result.type = PICONET_RX_RESULT_ERROR;
+    result.error.type = error;
+    return result;
+}
+
+tEconetRxResult _rx_data_for_scout(t_frame_parse_result *immediate_frame, uint8_t *buffer, size_t len) {
+    t_frame_type frame_type = immediate_frame->type;
+    tFrameWriteStatus scout_ack_result = _send_ack(immediate_frame);
+    if (scout_ack_result != ECO_FRAME_WRITE_OK) {
+        printf("[_handle_immediate] scout ack failed code=%u\n", scout_ack_result);
+        return _rx_result_for_error(PICONET_RX_ERROR_SCOUT_ACK);
+    }
+
+    clear_rx();
+    adlc_irq_reset(); //needed?
+
+    if (!_wait_frame_start(200)) {
+        return _rx_result_for_error(PICONET_RX_ERROR_MISC_TIMEOUT);
+    }
+
+    t_frame_read_result data_frame_result = _read_frame(buffer, len, listen_addresses, sizeof(listen_addresses), 2000);
+    if (data_frame_result.status != ECO_FRAME_READ_OK) {
+        abort_read();
+        return _map_read_frame_result(data_frame_result.status);
+    }
+
+    t_frame_parse_result data_frame = _parse_frame(buffer, len, false);
+    if (data_frame.type != ECO_FRAME_TYPE_DATA) {
+        abort_read();
+        return _rx_result_for_error(PICONET_RX_RESULT_ERROR);
+    }
+
+    tFrameWriteStatus data_ack_result = _send_ack(&data_frame);
+    if (data_ack_result != ECO_FRAME_WRITE_OK) {
+        printf("[_handle_immediate] data ack failed code=%u\n", data_ack_result);
+        return _rx_result_for_error(PICONET_RX_ERROR_DATA_ACK);
+    }
+
+    tEconetRxResult result;
+    result.type = frame_type;
+    result.detail.buffer = data_frame.frame.frame;
+    result.detail.length = data_frame.frame.frame_len;
+    return result;
+}
+
+tEconetRxResult _handle_immediate_scout(t_frame_parse_result *immediate_scout_frame, uint8_t *buffer, size_t len) {
+    return _rx_data_for_scout(immediate_scout_frame, buffer, len);
+}
+
+tEconetRxResult _handle_transmit_scout(t_frame_parse_result *transmit_scout_frame, uint8_t *buffer, size_t len) {
+    return _rx_data_for_scout(transmit_scout_frame, buffer, len);
+}
+
+tEconetRxResult _handle_broadcast(t_frame_parse_result *broadcast_frame, uint8_t *buffer, size_t len) {
+    tEconetRxResult result;
+    result.type = PICONET_RX_RESULT_BROADCAST;
+    result.detail.buffer = broadcast_frame->frame.frame;
+    result.detail.length = broadcast_frame->frame.frame_len;
+    return result;
+}
+
+tEconetRxResult _handle_first_frame(uint8_t *buffer, size_t len) {
+    t_frame_read_result read_frame_result = _read_frame(buffer, len, listen_addresses, sizeof(listen_addresses), 2000);
+
+    if (read_frame_result.status != ECO_FRAME_READ_OK) {
+        _clear_rx();
+        return _map_read_frame_result(read_frame_result.status);
+    }
+
+    t_frame_parse_result result = _parse_frame(buffer, len, true);
+    switch (result.type) {
+        case ECO_FRAME_TYPE_SCOUT :
+            return _handle_transmit_scout(&result, buffer, len);
+        case ECO_FRAME_TYPE_IMMEDIATE :
+            return _handle_immediate_scout(&result, buffer, len);
+        case ECO_FRAME_TYPE_BROADCAST :
+            return _handle_broadcast(&result, buffer, len);
+        default :
+            abort_read();
+            break;
+    }
+}
+
+tEconetRxResult receive(uint8_t *buffer, size_t len) {
+    tEconetRxResult result;
+    result.type = PICONET_RX_RESULT_NONE;
+
     uint status_reg_1 = adlc_read(REG_STATUS_1);
 
     if (status_reg_1 & STATUS_1_S2_RD_REQ) {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
-            // Address present in FIFO, so fetch it and the rest of frame
-            tEconetRxResult read_frame_result = read_frame();
-            // adlc_reset();
-            return read_frame_result;
-        }
-        
-        if (status_reg_2 & STATUS_2_FRAME_VALID) {
-            // Frame complete - not expecting a frame here, so read and discard
-            adlc_read(REG_FIFO);
-            do_irq_reset = true;
+            // TODO: should we return here? need to irq reset innit?
+            result = _handle_first_frame(buffer, len);
         }
 
-        if (status_reg_2 & STATUS_2_INACTIVE_IDLE_RX) {
-            // Inactive idle - clear open rx
-            got_scout = false;
-            do_irq_reset = true;
-        }
-
-        if (status_reg_2 & STATUS_2_ABORT_RX) {
-            // TX abort received - not inside a frame here, so clear it
-            do_irq_reset = true;
-        }
-
-        if (status_reg_2 & STATUS_2_FCS_ERROR) {
-            // Frame error - not inside a frame here, so clear it 
-            do_irq_reset = true;
-        }
-
-        if (status_reg_2 & STATUS_2_NOT_DCD) {
-            // No clock
-            do_irq_reset = true;
-        }
-
-        if (status_reg_2 & STATUS_2_RX_OVERRUN) {
-            // Overrun - not inside a frame here, so clear it
-            do_irq_reset = true;
-        }
-
-        if (status_reg_2 & STATUS_2_RDA) {
-            // RX data available - not inside a frame here, so read and discard it
-            do_irq_reset = true;
-        }
-    } else {             
-        // Something else in SR1 needs servicing        
-        if (status_reg_1 & STATUS_1_RDA) {
-            // Not expecting data, so just read and ignore it!
-            adlc_read(REG_FIFO);
-        }
-        do_irq_reset = true;
-    }
-
-    if (do_irq_reset) {
+        adlc_irq_reset();
+    } else if (status_reg_1 & STATUS_1_RDA) {
+        // Unexpected RDA
+        abort_read();
         adlc_irq_reset();
     }
 
+    return result;
+}
+
+
+void _abort_read(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
+}
+
+void _clear_rx(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+}
+
+t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms) {
+    t_frame_read_result result = {
+        ECO_FRAME_READ_ERROR_UNEXPECTED,
+        0
+    };
+    uint stat = 0;
+
+    if (buffer_len == 0) {
+        result.status = ECO_FRAME_READ_ERROR_OVERFLOW;
+        return result;
+    }
+
+    // First byte should be address
+    buffer[result.bytes_read++] = adlc_read(REG_FIFO);
+    if (addr_len > 0) {
+        bool discard = true;
+        for (uint i = 0; i < addr_len; i++) {
+            if (buffer[result.bytes_read - 1] == addr[i]) {
+                discard = false;
+                break;
+            }
+        }
+
+        if (discard) {
+            result.status = ECO_FRAME_READ_NO_ADDR_MATCH;
+            return result;
+        }
+    }
+
+    uint32_t time_start_ms = time_ms();
+
+    bool frame_valid = false;
+    while (!frame_valid) {
+        do {
+            if (time_ms() > time_start_ms + timeout_ms) {
+                result.status = ECO_FRAME_READ_ERROR_TIMEOUT;
+                return result;
+            }
+
+            stat = adlc_read(REG_STATUS_2);
+        } while (!(stat & (STATUS_2_RDA | STATUS_2_FRAME_VALID | STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)));
+
+        if (stat & (STATUS_2_ABORT_RX | STATUS_2_FCS_ERROR | STATUS_2_RX_OVERRUN)) {
+            if (stat & STATUS_2_ABORT_RX) {
+                result.status = ECO_FRAME_READ_ERROR_ABORT;
+            } else if (stat & STATUS_2_FCS_ERROR) {
+                result.status = ECO_FRAME_READ_ERROR_CRC;
+            } else if (stat & STATUS_2_RX_OVERRUN) {
+                result.status = ECO_FRAME_READ_ERROR_OVERRUN;
+            }
+            return result;
+        }
+
+        if (stat & (STATUS_2_FRAME_VALID | STATUS_2_RDA)) {
+            if (result.bytes_read >= buffer_len) {
+                result.status = ECO_FRAME_READ_ERROR_OVERFLOW;
+                return result;
+            }
+
+            buffer[result.bytes_read++] = adlc_read(REG_FIFO);
+        }
+
+        frame_valid = (stat & STATUS_2_FRAME_VALID);
+    }
+
+    result.status = ECO_FRAME_READ_OK;
+    return result;
+}
+
+tEconetRxResult _map_read_frame_result(t_frame_read_status status) {
     tEconetRxResult result;
-    result.type = PICONET_RX_RESULT_NONE;
+    switch (status) {
+        case ECO_FRAME_READ_NO_ADDR_MATCH :
+            result.type = PICONET_RX_RESULT_NONE;
+            break;
+        case ECO_FRAME_READ_ERROR_CRC :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC_CRC;
+            break;
+        case ECO_FRAME_READ_ERROR_OVERRUN :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC_OVERRUN;
+            break;
+        case ECO_FRAME_READ_ERROR_ABORT :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC_ABORT;
+            break;
+        case ECO_FRAME_READ_ERROR_TIMEOUT :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC_TIMEOUT;
+            break;
+        case ECO_FRAME_READ_ERROR_OVERFLOW :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC_OVERFLOW;
+            break;
+        case ECO_FRAME_READ_ERROR_UNEXPECTED :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC;
+            break;
+        default :
+            result.type = PICONET_RX_RESULT_ERROR;
+            result.error.type = PICONET_RX_ERROR_MISC;
+            break;
+    }
     return result;
 }

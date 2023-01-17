@@ -21,6 +21,7 @@
     "files.associations": {
         "econet.h": "c",
         "adlc.h": "c",
-        "clocks.h": "c"
+        "clocks.h": "c",
+        "stdio.h": "c"
     }
 }
