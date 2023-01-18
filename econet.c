@@ -15,7 +15,7 @@ uint cfg_scout_timeout = 100;
 uint cfg_ack_timeout = 200;
 uint cfg_tx_begin_timeout = 5000;
 
-uint8_t listen_addresses[] = { };
+uint8_t listen_addresses[] = { 0x02, 0xFF };
 
 typedef enum e_frame_read_status {
     ECO_FRAME_READ_OK = 0L,
@@ -273,6 +273,7 @@ tEconetRxResult _rx_data_for_scout(t_frame_parse_result *scout_frame, uint8_t *b
         if (data_frame_result.status == ECO_FRAME_READ_OK) {
             break;
         }
+
         _abort_read();
     }
 
@@ -351,8 +352,6 @@ tEconetRxResult receive(uint8_t *buffer, size_t len) {
 
         adlc_irq_reset();
     } else if (status_reg_1 & STATUS_1_RDA) {
-        printf("[receive] unexpected RDA - aborting");
-        // Unexpected RDA
         _abort_read();
         adlc_irq_reset();
     }
