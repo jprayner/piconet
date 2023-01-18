@@ -1,5 +1,6 @@
 #include "util.h"
 #include "adlc.h"
+#include <stdio.h>
 
 uint32_t time_ms(void) {
   return to_ms_since_boot(get_absolute_time());

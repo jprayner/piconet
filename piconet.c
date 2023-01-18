@@ -59,6 +59,76 @@ static void frame_dump(tEconetRxResultDetail detail) {
     printf("\n");
 }
 
+void test_read(void) {
+    adlc_init();
+    while (true) {
+        for (uint i = 0; i < 4; i++) {
+            uint val = adlc_read(i);
+            //printf("ADLC %u: %u\n", i, val);
+            //adlc_write(i, i);
+            //sleep_ms(500);
+        }
+    }
+}
+
+void test_write(void) {
+    adlc_init();
+    while (true) {
+        for (uint i = 0; i < 1; i++) {
+            adlc_write(i, i);
+        }
+    }
+}
+
+void test_read_poll(void) {
+    const uint BUFFSIZE = 2048;
+    uint8_t buffer[BUFFSIZE];
+
+    econet_init();
+
+    while (true) {
+        tEconetRxResult result = receive(buffer, BUFFSIZE);
+
+        switch (result.type) {
+            case PICONET_RX_RESULT_NONE :
+                break;
+            case PICONET_RX_RESULT_ERROR :
+                printf("Error %u\n", result.error.type);
+                break;
+            case PICONET_RX_RESULT_BROADCAST :
+                printf("BCAST: ");
+                frame_dump(result.detail);
+                break;
+            case PICONET_RX_RESULT_IMMEDIATE_OP :
+                printf("IMMED: ");
+                frame_dump(result.detail);
+                break;
+            case PICONET_RX_RESULT_TRANSMIT :
+                printf("FRAME: ");
+                frame_dump(result.detail);
+                break;
+            default:
+                printf("WTF2 %u\n", result.type);
+                break;
+        }
+    }
+}
+
+int main() {
+    stdio_init_all();
+
+    sleep_ms(2000); // give client a chance to reconnect
+    printf("Hello world 32!\n");
+
+    // core0_loop();
+    // test_read();
+    // simple_sniff();
+    // rx_notify();
+    test_read_poll();
+}
+
+
+/*
 void core1_entry() {
     command_t cmd;
 
@@ -160,7 +230,7 @@ void core0_loop() {
         }
     }
 }
-/*
+
 void simple_sniff(void) {
     const uint NUM_BUFFS = 20;
     const uint BUFFSIZE = 8000;
@@ -249,7 +319,6 @@ void simple_sniff(void) {
         printf(".\n");
     }
 }
-*/
 
 bool parse_notify_data(uint8_t *buffer, size_t bytes_read) {
     // printf("parse_notify_data\n");
@@ -280,12 +349,7 @@ bool parse_notify_scout(uint8_t *buffer, size_t bytes_read) {
     if (bytes_read < 10) {
         return false;
     }
-/*
-    for (uint j = 0; j < bytes_read[i]; j++) {
-        printf("%02x ", buffers[i][j]);
-    }
-    printf(".\n");
-*/
+
     uint8_t to_station      = buffer[0];
     uint8_t to_network      = buffer[1];
     uint8_t from_station    = buffer[2];
@@ -423,70 +487,3 @@ bool rx_notify(void) {
 }
 */
 
-void test_read(void) {
-    adlc_init();
-    while (true) {
-        for (uint i = 0; i < 4; i++) {
-            uint val = adlc_read(i);
-            //printf("ADLC %u: %u\n", i, val);
-            //adlc_write(i, i);
-            //sleep_ms(500);
-        }
-    }
-}
-
-void test_write(void) {
-    adlc_init();
-    while (true) {
-        for (uint i = 0; i < 1; i++) {
-            adlc_write(i, i);
-        }
-    }
-}
-
-void test_read_poll(void) {
-    const uint BUFFSIZE = 2048;
-    uint8_t buffer[BUFFSIZE];
-
-    econet_init();
-
-    while (true) {
-        tEconetRxResult result = receive(buffer, BUFFSIZE);
-
-        switch (result.type) {
-            case PICONET_RX_RESULT_NONE :
-                break;
-            case PICONET_RX_RESULT_ERROR :
-                printf("Error %u\n", result.error.type);
-                break;
-            case PICONET_RX_RESULT_BROADCAST :
-                printf("BCAST: ");
-                frame_dump(result.detail);
-                break;
-            case PICONET_RX_RESULT_IMMEDIATE_OP :
-                printf("IMMED: ");
-                frame_dump(result.detail);
-                break;
-            case PICONET_RX_RESULT_TRANSMIT :
-                printf("FRAME: ");
-                frame_dump(result.detail);
-                break;
-            default:
-                printf("WTF2 %u\n", result.type);
-                break;
-        }
-    }
-}
-
-int main() {
-    stdio_init_all();
-
-    sleep_ms(2000); // give client a chance to reconnect
-    printf("Hello world 32!\n");
-
-    // core0_loop();
-    // test_read();
-    // simple_sniff();
-    // rx_notify();
-    test_read_poll();
-}

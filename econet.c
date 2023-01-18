@@ -1,3 +1,5 @@
+#include <stdio.h>
+
 #include "econet.h"
 
 #include "adlc.h"
@@ -13,7 +15,7 @@ uint cfg_scout_timeout = 100;
 uint cfg_ack_timeout = 200;
 uint cfg_tx_begin_timeout = 5000;
 
-uint8_t listen_addresses[] = { 0x00, 0x02, 0xff };
+uint8_t listen_addresses[] = { };
 
 typedef enum e_frame_read_status {
     ECO_FRAME_READ_OK = 0L,
@@ -35,6 +37,15 @@ typedef struct
 t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms);
 tEconetRxResult _map_read_frame_result(t_frame_read_status status);
 
+void _abort_read(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
+}
+
+void _clear_rx(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+}
+
 void econet_init(void) {
     adlc_init();
     adlc_irq_reset();
@@ -50,13 +61,13 @@ typedef struct
     uint8_t port;
     uint8_t *frame;
     size_t frame_len;
-    uint8_t *data;
+    uint8_t **data;
     size_t data_len;
 } t_econet_frame;
 
 typedef enum e_frame_type {
     ECO_FRAME_TYPE_UNKNOWN = 0L,
-    ECO_FRAME_TYPE_SCOUT,
+    ECO_FRAME_TYPE_TRANSMIT,
     ECO_FRAME_TYPE_ACK,
     ECO_FRAME_TYPE_IMMEDIATE,
     ECO_FRAME_TYPE_BROADCAST,
@@ -111,7 +122,7 @@ t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_f
     if ((result.frame.dest_station == 0x00) || (result.frame.dest_station == 0xff)) {
         result.type = ECO_FRAME_TYPE_BROADCAST;
     } else if (len == 6) {
-        result.type = ECO_FRAME_TYPE_SCOUT;
+        result.type = ECO_FRAME_TYPE_TRANSMIT;
     } else if (result.frame.port == 0 && len > 6) {
         result.type = ECO_FRAME_TYPE_IMMEDIATE;
     } else {
@@ -128,6 +139,11 @@ typedef enum eFrameWriteStatus {
     ECO_FRAME_WRITE_READY_TIMEOUT,
     ECO_FRAME_WRITE_UNEXPECTED,
 } tFrameWriteStatus;
+
+void _finish_tx(void) {
+    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
+    adlc_write_cr1(CR1_RIE | CR1_RX_RESET);
+}
 
 tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
     static uint timeout_ms = 2000;
@@ -153,6 +169,7 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
         while (true) {
             uint sr1 = adlc_read(REG_STATUS_1);
             if (sr1 & STATUS_1_TX_UNDERRUN) {
+                _finish_tx();
                 return ECO_FRAME_WRITE_UNDERRUN;
             }
             if (sr1 & STATUS_1_FRAME_COMPLETE) {
@@ -165,10 +182,7 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
             // };
 
             if (time_ms() > time_start_ms + timeout_ms) {
-                // move to reset_irq or similar
-                adlc_write_cr1(0b00000000); // Disable TX interrupts
-                adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
-
+                _finish_tx();
                 return ECO_FRAME_WRITE_READY_TIMEOUT;
             }
         }
@@ -186,16 +200,16 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
             break;
         }
         if (time_ms() > time_start_ms + timeout_ms) {
+            _finish_tx();
             return ECO_FRAME_WRITE_READY_TIMEOUT;
         }
     };
 
+    _finish_tx();
+
     if (!(sr1 & STATUS_1_FRAME_COMPLETE)) {
         return ECO_FRAME_WRITE_UNEXPECTED;
     }
-
-    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
-    adlc_write_cr1(CR1_RIE);
 
     return ECO_FRAME_WRITE_OK;
 }
@@ -239,36 +253,39 @@ tEconetRxResult _rx_result_for_error(tEconetError error) {
     return result;
 }
 
-tEconetRxResult _rx_data_for_scout(t_frame_parse_result *immediate_frame, uint8_t *buffer, size_t len) {
-    t_frame_type frame_type = immediate_frame->type;
-    tFrameWriteStatus scout_ack_result = _send_ack(immediate_frame);
+tEconetRxResult _rx_data_for_scout(t_frame_parse_result *scout_frame, uint8_t *buffer, size_t len) {
+    t_frame_type frame_type = scout_frame->type;
+    tFrameWriteStatus scout_ack_result = _send_ack(scout_frame);
     if (scout_ack_result != ECO_FRAME_WRITE_OK) {
-        printf("[_handle_immediate] scout ack failed code=%u\n", scout_ack_result);
+        printf("[_rx_data_for_scout] scout ack failed code=%u\n", scout_ack_result);
         return _rx_result_for_error(PICONET_RX_ERROR_SCOUT_ACK);
     }
 
-    clear_rx();
-    adlc_irq_reset(); //needed?
+    t_frame_read_result data_frame_result;
+    while (true) {
+        adlc_irq_reset();
 
-    if (!_wait_frame_start(200)) {
-        return _rx_result_for_error(PICONET_RX_ERROR_MISC_TIMEOUT);
+        if (!_wait_frame_start(200)) {
+            return _rx_result_for_error(PICONET_RX_ERROR_MISC_TIMEOUT);
+        }
+
+        data_frame_result = _read_frame(buffer, len, listen_addresses, sizeof(listen_addresses), 2000);
+        if (data_frame_result.status == ECO_FRAME_READ_OK) {
+            break;
+        }
+        _abort_read();
     }
 
-    t_frame_read_result data_frame_result = _read_frame(buffer, len, listen_addresses, sizeof(listen_addresses), 2000);
-    if (data_frame_result.status != ECO_FRAME_READ_OK) {
-        abort_read();
-        return _map_read_frame_result(data_frame_result.status);
-    }
-
-    t_frame_parse_result data_frame = _parse_frame(buffer, len, false);
+    t_frame_parse_result data_frame = _parse_frame(buffer, data_frame_result.bytes_read, false);
     if (data_frame.type != ECO_FRAME_TYPE_DATA) {
-        abort_read();
+        printf("[_rx_data_for_scout] parse failed type=%u len=%u - aborting", data_frame.type, data_frame_result.bytes_read);
+        _abort_read();
         return _rx_result_for_error(PICONET_RX_RESULT_ERROR);
     }
 
     tFrameWriteStatus data_ack_result = _send_ack(&data_frame);
     if (data_ack_result != ECO_FRAME_WRITE_OK) {
-        printf("[_handle_immediate] data ack failed code=%u\n", data_ack_result);
+        printf("[_rx_data_for_scout] data ack failed code=%u\n", data_ack_result);
         return _rx_result_for_error(PICONET_RX_ERROR_DATA_ACK);
     }
 
@@ -303,16 +320,18 @@ tEconetRxResult _handle_first_frame(uint8_t *buffer, size_t len) {
         return _map_read_frame_result(read_frame_result.status);
     }
 
-    t_frame_parse_result result = _parse_frame(buffer, len, true);
+    t_frame_parse_result result = _parse_frame(buffer, read_frame_result.bytes_read, true);
     switch (result.type) {
-        case ECO_FRAME_TYPE_SCOUT :
+        case ECO_FRAME_TYPE_TRANSMIT :
             return _handle_transmit_scout(&result, buffer, len);
         case ECO_FRAME_TYPE_IMMEDIATE :
             return _handle_immediate_scout(&result, buffer, len);
         case ECO_FRAME_TYPE_BROADCAST :
+            _abort_read();
             return _handle_broadcast(&result, buffer, len);
         default :
-            abort_read();
+            printf("[_handle_first_frame] unexpected type=%u bytes_read=%u - aborting", result.type, read_frame_result.bytes_read);
+            _abort_read();
             break;
     }
 }
@@ -327,28 +346,18 @@ tEconetRxResult receive(uint8_t *buffer, size_t len) {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
-            // TODO: should we return here? need to irq reset innit?
             result = _handle_first_frame(buffer, len);
         }
 
         adlc_irq_reset();
     } else if (status_reg_1 & STATUS_1_RDA) {
+        printf("[receive] unexpected RDA - aborting");
         // Unexpected RDA
-        abort_read();
+        _abort_read();
         adlc_irq_reset();
     }
 
     return result;
-}
-
-
-void _abort_read(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
-    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
-}
-
-void _clear_rx(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
 }
 
 t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms) {
