@@ -5,51 +5,15 @@
 #include "adlc.h"
 #include "util.h"
 
-static int BUFFSIZE = 16384;
-
-uint rx_buff[16384]; // TODO should match BUFFSIZE
-uint scout_buff[8];
-uint ack_buff[8];
+#define TX_DATA_BUFFER_SZ   1024
+#define RX_DATA_BUFFER_SZ   1024
+#define RX_SCOUT_BUFFER_SZ  32
 
 uint cfg_scout_timeout = 100;
 uint cfg_ack_timeout = 200;
 uint cfg_tx_begin_timeout = 5000;
 
 uint8_t listen_addresses[] = { 0x02, 0xFF };
-
-typedef enum e_frame_read_status {
-    ECO_FRAME_READ_OK = 0L,
-    ECO_FRAME_READ_NO_ADDR_MATCH,
-    ECO_FRAME_READ_ERROR_CRC,
-    ECO_FRAME_READ_ERROR_OVERRUN,
-    ECO_FRAME_READ_ERROR_ABORT,
-    ECO_FRAME_READ_ERROR_TIMEOUT,
-    ECO_FRAME_READ_ERROR_OVERFLOW,
-    ECO_FRAME_READ_ERROR_UNEXPECTED,
-} t_frame_read_status;
-
-typedef struct
-{
-    t_frame_read_status status;
-    size_t bytes_read;
-} t_frame_read_result;
-
-t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms);
-tEconetRxResult _map_read_frame_result(t_frame_read_status status);
-
-void _abort_read(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
-    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
-}
-
-void _clear_rx(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
-}
-
-void econet_init(void) {
-    adlc_init();
-    adlc_irq_reset();
-}
 
 typedef struct
 {
@@ -61,7 +25,7 @@ typedef struct
     uint8_t port;
     uint8_t *frame;
     size_t frame_len;
-    uint8_t **data;
+    uint8_t *data;
     size_t data_len;
 } t_econet_frame;
 
@@ -80,7 +44,74 @@ typedef struct
     t_econet_frame frame;
 } t_frame_parse_result;
 
-t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_frame) {
+typedef enum e_frame_read_status {
+    ECO_FRAME_READ_OK = 0L,
+    ECO_FRAME_READ_NO_ADDR_MATCH,
+    ECO_FRAME_READ_ERROR_CRC,
+    ECO_FRAME_READ_ERROR_OVERRUN,
+    ECO_FRAME_READ_ERROR_ABORT,
+    ECO_FRAME_READ_ERROR_TIMEOUT,
+    ECO_FRAME_READ_ERROR_OVERFLOW,
+    ECO_FRAME_READ_ERROR_UNEXPECTED,
+} t_frame_read_status;
+
+typedef struct
+{
+    t_frame_read_status status;
+    size_t bytes_read;
+} t_frame_read_result;
+
+typedef enum eFrameWriteStatus {
+    ECO_FRAME_WRITE_OK = 0L,
+    ECO_FRAME_WRITE_UNDERRUN,
+    ECO_FRAME_WRITE_COLLISION,
+    ECO_FRAME_WRITE_READY_TIMEOUT,
+    ECO_FRAME_WRITE_UNEXPECTED,
+} tFrameWriteStatus;
+
+static tFrameWriteStatus        _tx_frame(uint8_t *buffer, size_t len);
+static t_frame_read_result      _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms);
+static t_frame_parse_result     _parse_frame(uint8_t *buffer, size_t len, bool is_opening_frame);
+static tEconetRxResult          _handle_first_frame(uint8_t *buffer, size_t len);
+static tEconetRxResult          _rx_data_for_scout(t_frame_parse_result *scout_frame, uint8_t *buffer, size_t len);
+static tEconetRxResult          _handle_immediate_scout(t_frame_parse_result *immediate_scout_frame, uint8_t *buffer, size_t len);
+static tEconetRxResult          _handle_transmit_scout(t_frame_parse_result *transmit_scout_frame, uint8_t *buffer, size_t len);
+static tEconetRxResult          _handle_broadcast(t_frame_parse_result *broadcast_frame, uint8_t *buffer, size_t len);
+static tFrameWriteStatus        _send_ack(t_frame_parse_result *incoming_frame);
+static tEconetRxResult          _rx_result_for_error(tEconetError error);
+static tEconetRxResult          _map_read_frame_result(t_frame_read_status status);
+static void                     _abort_read(void);
+static void                     _clear_rx(void);
+static void                     _finish_tx(void);
+
+void econet_init(void) {
+    adlc_init();
+    adlc_irq_reset();
+}
+
+tEconetRxResult receive(uint8_t *buffer, size_t len) {
+    tEconetRxResult result;
+    result.type = PICONET_RX_RESULT_NONE;
+
+    uint status_reg_1 = adlc_read(REG_STATUS_1);
+
+    if (status_reg_1 & STATUS_1_S2_RD_REQ) {
+        uint status_reg_2 = adlc_read(REG_STATUS_2);
+
+        if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
+            result = _handle_first_frame(buffer, len);
+        }
+
+        adlc_irq_reset();
+    } else if (status_reg_1 & STATUS_1_RDA) {
+        _abort_read();
+        adlc_irq_reset();
+    }
+
+    return result;
+}
+
+static t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_frame) {
     t_frame_parse_result result;
 
     if (len < 4) {
@@ -94,7 +125,7 @@ t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_f
     result.frame.src_net = buffer[3];
     result.frame.frame = buffer;
     result.frame.frame_len = len;
-    result.frame.data = buffer[4];
+    result.frame.data = buffer + 4;
     result.frame.data_len = len - 4;
 
     if (!is_opening_frame) {
@@ -104,7 +135,7 @@ t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_f
         }
 
         result.type = ECO_FRAME_TYPE_DATA;
-        result.frame.data = buffer[4];
+        result.frame.data = buffer + 4;
         result.frame.data_len = len - 4;
         return result;
     }
@@ -116,7 +147,7 @@ t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_f
 
     result.frame.ctrl = buffer[4];
     result.frame.port = buffer[5];
-    result.frame.data = buffer[6];
+    result.frame.data = buffer + 6;
     result.frame.data_len = len - 6;
 
     if ((result.frame.dest_station == 0x00) || (result.frame.dest_station == 0xff)) {
@@ -132,20 +163,7 @@ t_frame_parse_result _parse_frame(uint8_t *buffer, size_t len, bool is_opening_f
     return result;
 }
 
-typedef enum eFrameWriteStatus {
-    ECO_FRAME_WRITE_OK = 0L,
-    ECO_FRAME_WRITE_UNDERRUN,
-    ECO_FRAME_WRITE_COLLISION,
-    ECO_FRAME_WRITE_READY_TIMEOUT,
-    ECO_FRAME_WRITE_UNEXPECTED,
-} tFrameWriteStatus;
-
-void _finish_tx(void) {
-    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
-    adlc_write_cr1(CR1_RIE | CR1_RX_RESET);
-}
-
-tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
+static tFrameWriteStatus _tx_frame(uint8_t *buffer, size_t len) {
     static uint timeout_ms = 2000;
 	char tdra_flag;
 	int loopcount = 0;
@@ -214,7 +232,7 @@ tFrameWriteStatus tx_frame(uint8_t *buffer, size_t len) {
     return ECO_FRAME_WRITE_OK;
 }
 
-tFrameWriteStatus _send_ack(t_frame_parse_result *incoming_frame) {
+static tFrameWriteStatus _send_ack(t_frame_parse_result *incoming_frame) {
     adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE);
     adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET | CR1_RX_FRAME_DISCONTINUE | CR1_TIE);
 
@@ -224,10 +242,10 @@ tFrameWriteStatus _send_ack(t_frame_parse_result *incoming_frame) {
     ack_frame[2] = incoming_frame->frame.dest_station;
     ack_frame[3] = incoming_frame->frame.dest_net;
 
-    return tx_frame(ack_frame, 4);
+    return _tx_frame(ack_frame, 4);
 }
 
-bool _wait_frame_start(uint32_t timeout_ms) {
+static bool _wait_frame_start(uint32_t timeout_ms) {
     uint32_t time_start_ms = time_ms();
 
     while (true) {
@@ -246,14 +264,14 @@ bool _wait_frame_start(uint32_t timeout_ms) {
     return true;
 }
 
-tEconetRxResult _rx_result_for_error(tEconetError error) {
+static tEconetRxResult _rx_result_for_error(tEconetError error) {
     tEconetRxResult result;
     result.type = PICONET_RX_RESULT_ERROR;
     result.error.type = error;
     return result;
 }
 
-tEconetRxResult _rx_data_for_scout(t_frame_parse_result *scout_frame, uint8_t *buffer, size_t len) {
+static tEconetRxResult _rx_data_for_scout(t_frame_parse_result *scout_frame, uint8_t *buffer, size_t len) {
     t_frame_type frame_type = scout_frame->type;
     tFrameWriteStatus scout_ack_result = _send_ack(scout_frame);
     if (scout_ack_result != ECO_FRAME_WRITE_OK) {
@@ -294,18 +312,19 @@ tEconetRxResult _rx_data_for_scout(t_frame_parse_result *scout_frame, uint8_t *b
     result.type = frame_type;
     result.detail.buffer = data_frame.frame.frame;
     result.detail.length = data_frame.frame.frame_len;
+
     return result;
 }
 
-tEconetRxResult _handle_immediate_scout(t_frame_parse_result *immediate_scout_frame, uint8_t *buffer, size_t len) {
+static tEconetRxResult _handle_immediate_scout(t_frame_parse_result *immediate_scout_frame, uint8_t *buffer, size_t len) {
     return _rx_data_for_scout(immediate_scout_frame, buffer, len);
 }
 
-tEconetRxResult _handle_transmit_scout(t_frame_parse_result *transmit_scout_frame, uint8_t *buffer, size_t len) {
+static tEconetRxResult _handle_transmit_scout(t_frame_parse_result *transmit_scout_frame, uint8_t *buffer, size_t len) {
     return _rx_data_for_scout(transmit_scout_frame, buffer, len);
 }
 
-tEconetRxResult _handle_broadcast(t_frame_parse_result *broadcast_frame, uint8_t *buffer, size_t len) {
+static tEconetRxResult _handle_broadcast(t_frame_parse_result *broadcast_frame, uint8_t *buffer, size_t len) {
     tEconetRxResult result;
     result.type = PICONET_RX_RESULT_BROADCAST;
     result.detail.buffer = broadcast_frame->frame.frame;
@@ -313,7 +332,7 @@ tEconetRxResult _handle_broadcast(t_frame_parse_result *broadcast_frame, uint8_t
     return result;
 }
 
-tEconetRxResult _handle_first_frame(uint8_t *buffer, size_t len) {
+static tEconetRxResult _handle_first_frame(uint8_t *buffer, size_t len) {
     t_frame_read_result read_frame_result = _read_frame(buffer, len, listen_addresses, sizeof(listen_addresses), 2000);
 
     if (read_frame_result.status != ECO_FRAME_READ_OK) {
@@ -337,29 +356,7 @@ tEconetRxResult _handle_first_frame(uint8_t *buffer, size_t len) {
     }
 }
 
-tEconetRxResult receive(uint8_t *buffer, size_t len) {
-    tEconetRxResult result;
-    result.type = PICONET_RX_RESULT_NONE;
-
-    uint status_reg_1 = adlc_read(REG_STATUS_1);
-
-    if (status_reg_1 & STATUS_1_S2_RD_REQ) {
-        uint status_reg_2 = adlc_read(REG_STATUS_2);
-
-        if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
-            result = _handle_first_frame(buffer, len);
-        }
-
-        adlc_irq_reset();
-    } else if (status_reg_1 & STATUS_1_RDA) {
-        _abort_read();
-        adlc_irq_reset();
-    }
-
-    return result;
-}
-
-t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms) {
+static t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *addr, size_t addr_len, uint timeout_ms) {
     t_frame_read_result result = {
         ECO_FRAME_READ_ERROR_UNEXPECTED,
         0
@@ -428,7 +425,7 @@ t_frame_read_result _read_frame(uint8_t *buffer, size_t buffer_len, uint8_t *add
     return result;
 }
 
-tEconetRxResult _map_read_frame_result(t_frame_read_status status) {
+static tEconetRxResult _map_read_frame_result(t_frame_read_status status) {
     tEconetRxResult result;
     switch (status) {
         case ECO_FRAME_READ_NO_ADDR_MATCH :
@@ -464,4 +461,18 @@ tEconetRxResult _map_read_frame_result(t_frame_read_status status) {
             break;
     }
     return result;
+}
+
+static void _abort_read(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
+}
+
+static void _clear_rx(void) {
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
+}
+
+static void _finish_tx(void) {
+    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
+    adlc_write_cr1(CR1_RIE | CR1_RX_RESET);
 }
