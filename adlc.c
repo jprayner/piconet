@@ -22,10 +22,6 @@ const uint GPIO_DATA_5 = 7;
 const uint GPIO_DATA_6 = 8;
 const uint GPIO_DATA_7 = 9;
 
-// WARNING!!! IRQ and RnW have been swapped - don't forget to modify hardware!!!
-//    IRQ used to be 14
-//    RnW used to be 10
-
 const uint GPIO_BUFF_IRQ = 10;
 const uint GPIO_BUFF_A0 = 11;
 const uint GPIO_BUFF_A1 = 12;
@@ -112,16 +108,7 @@ void adlc_init(void) {
     gpio_put(LED_PIN, 1);
 
     adlc_reset();
-/*
-#define CR2_PRIO_STATUS_ENABLE    1
-#define CR2_2_BYTE_TRANSFER       2
-#define CR2_FLAG_IDLE             4
-#define CR2_FRAME_COMPLETE        8
-#define CR2_TX_LAST_DATA          16
-#define CR2_CLEAR_RX_STATUS       32
-#define CR2_CLEAR_TX_STATUS       64
-#define CR2_RTS_CONTROL           128
-*/
+
     // todo get free sm
     pio = pio0;
     sm = pio_claim_unused_sm(pio, true);

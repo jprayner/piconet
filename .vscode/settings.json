@@ -22,6 +22,9 @@
         "econet.h": "c",
         "adlc.h": "c",
         "clocks.h": "c",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "*.tcc": "c",
+        "memory": "c",
+        "tuple": "c"
     }
 }

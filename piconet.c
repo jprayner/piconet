@@ -23,8 +23,8 @@ typedef struct
 {
     tPiconetEventType type;
     union {
-        tEconetRxResult rxEvent; // for PICONET_RX_EVENT
-        tEconetTxResult txEvent; // for PICONET_TX_EVENT
+        econet_rx_result_t rxEvent; // for PICONET_RX_EVENT
+        econet_rx_result_t txEvent; // for PICONET_TX_EVENT
     };
 } event_t;
 
@@ -51,10 +51,10 @@ typedef struct
 queue_t command_queue;
 queue_t event_queue;
 
-static void frame_dump(tEconetRxResultDetail detail) {
+static void hexdump(uint8_t *buffer, size_t len) {
     int i;
-    for (i = 0; i < detail.length; i++) {
-        printf("%02x ", detail.buffer[i]);
+    for (i = 0; i < len; i++) {
+        printf("%02x ", buffer[i]);
     }
     printf("\n");
 }
@@ -81,31 +81,41 @@ void test_write(void) {
 }
 
 void test_read_poll(void) {
-    const uint BUFFSIZE = 2048;
-    uint8_t buffer[BUFFSIZE];
-
-    econet_init();
+    if (!econet_init()) {
+        printf("Failed to init econet\n");
+        return;
+    }
 
     while (true) {
-        tEconetRxResult result = receive(buffer, BUFFSIZE);
+        //econet_rx_result_t result = receive();
+        econet_rx_result_t result = monitor();
 
         switch (result.type) {
             case PICONET_RX_RESULT_NONE :
                 break;
             case PICONET_RX_RESULT_ERROR :
-                printf("Error %u\n", result.error.type);
+                printf("Error %u\n", result.error);
                 break;
             case PICONET_RX_RESULT_BROADCAST :
-                printf("BCAST: ");
-                frame_dump(result.detail);
+                printf("BCAST:\n    ");
+                hexdump(result.detail.data, result.detail.data_len);
+                break;
+            case PICONET_RX_RESULT_MONITOR :
+                hexdump(result.detail.data, result.detail.data_len);
                 break;
             case PICONET_RX_RESULT_IMMEDIATE_OP :
-                printf("IMMED: ");
-                frame_dump(result.detail);
+                printf("IMMED:");
+                printf("\n   ");
+                hexdump(result.detail.scout, result.detail.scout_len);
+                printf("   ");
+                hexdump(result.detail.data, result.detail.data_len);
                 break;
             case PICONET_RX_RESULT_TRANSMIT :
-                printf("FRAME: ");
-                frame_dump(result.detail);
+                printf("TRANS: ");
+                printf("\n   ");
+                hexdump(result.detail.scout, result.detail.scout_len);
+                printf("   ");
+                hexdump(result.detail.data, result.detail.data_len);
                 break;
             default:
                 printf("WTF2 %u\n", result.type);
