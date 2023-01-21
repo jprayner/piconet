@@ -6,6 +6,13 @@ uint32_t time_ms(void) {
   return to_ms_since_boot(get_absolute_time());
 }
 
+void hexdump(uint8_t *buffer, size_t len) {
+    int i;
+    for (i = 0; i < len; i++) {
+        printf("%02x ", buffer[i]);
+    }
+    printf("\n");
+}
 
 void print_status1(uint value) {
     printf("Status register 1: 0x%2x ", value);

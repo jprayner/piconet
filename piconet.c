@@ -12,6 +12,14 @@
 
 //define DEBUG
 
+#define RX_DATA_BUFFER_SZ   1024
+#define RX_SCOUT_BUFFER_SZ  32
+#define ACK_BUFFER_SZ       32
+
+#define VERSION_MAJOR       0
+#define VERSION_MINOR       1
+#define VERSION_REV         1
+
 const uint CMD_RECEIVE = 1;
 
 typedef enum ePiconetEventType {
@@ -19,12 +27,21 @@ typedef enum ePiconetEventType {
     PICONET_TX_EVENT
 } tPiconetEventType;
 
+typedef struct {
+    econet_rx_result_type_t type;
+    econet_rx_error_t       error;
+    uint8_t                 scout[RX_SCOUT_BUFFER_SZ];
+    size_t                  scout_len;
+    uint8_t                 data[RX_DATA_BUFFER_SZ];
+    size_t                  data_len;
+} econet_rx_event_t;
+
 typedef struct
 {
     tPiconetEventType type;
     union {
-        econet_rx_result_t rxEvent; // for PICONET_RX_EVENT
-        econet_rx_result_t txEvent; // for PICONET_TX_EVENT
+        econet_rx_event_t   rx_event_detail;  // if type == PICONET_RX_EVENT
+        econet_rx_result_t  tx_event_detail; // if type == PICONET_TX_EVENT
     };
 } event_t;
 
@@ -51,14 +68,241 @@ typedef struct
 queue_t command_queue;
 queue_t event_queue;
 
-static void hexdump(uint8_t *buffer, size_t len) {
-    int i;
-    for (i = 0; i < len; i++) {
-        printf("%02x ", buffer[i]);
-    }
-    printf("\n");
+void    _core0_loop(void);
+void    _core1_loop(void);
+char*   _rx_error_to_str(econet_rx_error_t error);
+
+int main() {
+    stdio_init_all();
+
+    sleep_ms(2000); // give client a chance to reconnect
+    printf("Piconet v.%d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_REV);
+
+    queue_init(&command_queue, sizeof(command_t), 1);
+    queue_init(&event_queue, sizeof(event_t), 8);
+    multicore_launch_core1(_core1_loop);
+
+    _core0_loop();
 }
 
+void _core1_loop(void) {
+    command_t cmd;
+    event_t event;
+    uint8_t ack_buffer[ACK_BUFFER_SZ];
+
+    if (!econet_init(
+            event.rx_event_detail.scout,
+            RX_SCOUT_BUFFER_SZ,
+            event.rx_event_detail.data,
+            RX_DATA_BUFFER_SZ,
+            ack_buffer,
+            ACK_BUFFER_SZ)) {
+        printf("Failed to init econet module. Game over, man.\n");
+        return;
+    }
+
+    while (true) {
+        if (queue_try_remove(&command_queue, &cmd)) {
+            switch (cmd.type) {
+                case PICONET_CMD_ACK: {
+                    // tEconetTxResult result = ack_scout(
+                    //     cmd.ack.senderStation,
+                    //     cmd.ack.senderNetwork,
+                    //     cmd.ack.controlByte,
+                    //     cmd.ack.port);
+                    // event_t txEvent;
+                    // txEvent.type = PICONET_TX_EVENT;
+                    // txEvent.txEvent = result;
+                    // queue_add_blocking(&event_queue, &result);
+                    break;
+                }
+            }
+        }
+
+        econet_rx_result_t rx_result = monitor();
+
+        if (rx_result.type == PICONET_RX_RESULT_NONE) {
+            continue;
+        }
+
+        event.type = PICONET_RX_EVENT;
+        event.rx_event_detail.type = rx_result.type;
+
+        if (rx_result.type == PICONET_RX_RESULT_ERROR) {
+            event.rx_event_detail.error = rx_result.error;
+        } else {
+            event.rx_event_detail.scout_len = rx_result.detail.scout_len;   // scout itself populated by econet module
+            event.rx_event_detail.data_len = rx_result.detail.data_len;     // data itself populated by econet module
+        }
+
+        queue_add_blocking(&event_queue, &event);
+    }
+}
+
+void _core0_loop(void) {
+    event_t event;
+    while (true) {
+        if (!queue_try_remove(&event_queue, &event)) {
+            continue;
+        }
+        switch (event.type) {
+            case PICONET_TX_EVENT: {
+                switch (event.tx_event_detail.type) {
+                    case PICONET_TX_RESULT_OK:
+                        printf("TRANS: OK");
+                        break;
+                    case PICONET_TX_RESULT_ERROR_MISC:
+                        printf("TRANS: ERROR_MISC");
+                        break;
+                    case PICONET_TX_RESULT_ERROR_NO_ACK:
+                        printf("TRANS: ERROR_NO_ACK");
+                        break;
+                    case PICONET_TX_RESULT_ERROR_TIMEOUT:
+                        printf("TRANS: ERROR_TIMEOUT");
+                        break;
+                    default:
+                        printf("TRANS: WTF");
+                        break;
+                }
+                break;
+            }
+            case PICONET_RX_EVENT: {
+                switch (event.rx_event_detail.type) {
+                    case PICONET_RX_RESULT_ERROR :
+                        printf("%s\n", _rx_error_to_str(event.rx_event_detail.error));
+                        break;
+                    case PICONET_RX_RESULT_BROADCAST :
+                        printf("BCAST:\n    ");
+                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        break;
+                    case PICONET_RX_RESULT_MONITOR :
+                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        break;
+                    case PICONET_RX_RESULT_IMMEDIATE_OP :
+                        printf("IMMED:");
+                        printf("\n   ");
+                        hexdump(event.rx_event_detail.scout, event.rx_event_detail.scout_len);
+                        printf("   ");
+                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        break;
+                    case PICONET_RX_RESULT_TRANSMIT :
+                        printf("TRANS: ");
+                        printf("\n   ");
+                        hexdump(event.rx_event_detail.scout, event.rx_event_detail.scout_len);
+                        printf("   ");
+                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        break;
+                }
+                break;
+            }
+            default: {
+                printf("WTF1 %u\n", event.type);
+                break;
+            }
+        }
+    }
+}
+
+char* _rx_error_to_str(econet_rx_error_t error) {
+    switch (error) {
+        case ECONET_RX_ERROR_MISC:
+            return "ECONET_RX_ERROR_MISC";
+        case ECONET_RX_ERROR_UNINITIALISED:
+            return "ECONET_RX_ERROR_UNINITIALISED";
+        case ECONET_RX_ERROR_CRC:
+            return "ECONET_RX_ERROR_CRC";
+        case ECONET_RX_ERROR_OVERRUN:
+            return "ECONET_RX_ERROR_OVERRUN";
+        case ECONET_RX_ERROR_ABORT:
+            return "ECONET_RX_ERROR_ABORT";
+        case ECONET_RX_ERROR_TIMEOUT:
+            return "ECONET_RX_ERROR_TIMEOUT";
+        case ECONET_RX_ERROR_OVERFLOW:
+            return "ECONET_RX_ERROR_OVERFLOW";
+        case ECONET_RX_ERROR_SCOUT_ACK:
+            return "ECONET_RX_ERROR_SCOUT_ACK";
+        case ECONET_RX_ERROR_DATA_ACK:
+            return "ECONET_RX_ERROR_DATA_ACK";
+        default:
+            return "UNEXPECTED";
+    }
+}
+
+/*
+void test_read_poll(void) {
+    if (!econet_init(RX_SCOUT_BUFFER_SZ, RX_DATA_BUFFER_SZ)) {
+        printf("Failed to init econet\n");
+        return;
+    }
+
+    while (true) {
+        //econet_rx_result_t result = receive();
+        econet_rx_result_t result = monitor();
+
+        switch (result.type) {
+            case PICONET_RX_RESULT_NONE :
+                break;
+            case PICONET_RX_RESULT_ERROR :
+                switch (result.error) {
+                    case ECONET_RX_ERROR_MISC:
+                        printf("ECONET_RX_ERROR_MISC");
+                        break;
+                    case ECONET_RX_ERROR_UNINITIALISED:
+                        printf("ECONET_RX_ERROR_UNINITIALISED");
+                        break;
+                    case ECONET_RX_ERROR_CRC:
+                        printf("ECONET_RX_ERROR_CRC");
+                        break;
+                    case ECONET_RX_ERROR_OVERRUN:
+                        printf("ECONET_RX_ERROR_OVERRUN\n");
+                        break;
+                    case ECONET_RX_ERROR_ABORT:
+                        printf("ECONET_RX_ERROR_ABORT\n");
+                        break;
+                    case ECONET_RX_ERROR_TIMEOUT:
+                        printf("ECONET_RX_ERROR_TIMEOUT\n");
+                        break;
+                    case ECONET_RX_ERROR_OVERFLOW:
+                        printf("ECONET_RX_ERROR_OVERFLOW\n");
+                        break;
+                    case ECONET_RX_ERROR_SCOUT_ACK:
+                        printf("ECONET_RX_ERROR_SCOUT_ACK\n");
+                        break;
+                    case ECONET_RX_ERROR_DATA_ACK:
+                        printf("ECONET_RX_ERROR_DATA_ACK\n");
+                        break;
+                    default:
+                        printf("UNEXPECTED\n");
+                        break;
+                }
+                break;
+            case PICONET_RX_RESULT_BROADCAST :
+                printf("BCAST:\n    ");
+                hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                break;
+            case PICONET_RX_RESULT_MONITOR :
+                hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                break;
+            case PICONET_RX_RESULT_IMMEDIATE_OP :
+                printf("IMMED:");
+                printf("\n   ");
+                hexdump(event.rx_event_detail.scout, event.rx_event_detail.scout_len);
+                printf("   ");
+                hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                break;
+            case PICONET_RX_RESULT_TRANSMIT :
+                printf("TRANS: ");
+                printf("\n   ");
+                hexdump(event.rx_event_detail.scout, event.rx_event_detail.scout_len);
+                printf("   ");
+                hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                break;
+            default:
+                printf("WTF2 %u\n", result.type);
+                break;
+        }
+    }
+}
 void test_read(void) {
     adlc_init();
     while (true) {
@@ -76,167 +320,6 @@ void test_write(void) {
     while (true) {
         for (uint i = 0; i < 1; i++) {
             adlc_write(i, i);
-        }
-    }
-}
-
-void test_read_poll(void) {
-    if (!econet_init()) {
-        printf("Failed to init econet\n");
-        return;
-    }
-
-    while (true) {
-        //econet_rx_result_t result = receive();
-        econet_rx_result_t result = monitor();
-
-        switch (result.type) {
-            case PICONET_RX_RESULT_NONE :
-                break;
-            case PICONET_RX_RESULT_ERROR :
-                printf("Error %u\n", result.error);
-                break;
-            case PICONET_RX_RESULT_BROADCAST :
-                printf("BCAST:\n    ");
-                hexdump(result.detail.data, result.detail.data_len);
-                break;
-            case PICONET_RX_RESULT_MONITOR :
-                hexdump(result.detail.data, result.detail.data_len);
-                break;
-            case PICONET_RX_RESULT_IMMEDIATE_OP :
-                printf("IMMED:");
-                printf("\n   ");
-                hexdump(result.detail.scout, result.detail.scout_len);
-                printf("   ");
-                hexdump(result.detail.data, result.detail.data_len);
-                break;
-            case PICONET_RX_RESULT_TRANSMIT :
-                printf("TRANS: ");
-                printf("\n   ");
-                hexdump(result.detail.scout, result.detail.scout_len);
-                printf("   ");
-                hexdump(result.detail.data, result.detail.data_len);
-                break;
-            default:
-                printf("WTF2 %u\n", result.type);
-                break;
-        }
-    }
-}
-
-int main() {
-    stdio_init_all();
-
-    sleep_ms(2000); // give client a chance to reconnect
-    printf("Hello world 32!\n");
-
-    // core0_loop();
-    // test_read();
-    // simple_sniff();
-    // rx_notify();
-    test_read_poll();
-}
-
-
-/*
-void core1_entry() {
-    command_t cmd;
-
-    while (1) {
-        if (queue_try_remove(&command_queue, &cmd)) {
-            switch (cmd.type) {
-                case PICONET_CMD_ACK: {
-                    tEconetTxResult result = ack_scout(
-                        cmd.ack.senderStation,
-                        cmd.ack.senderNetwork,
-                        cmd.ack.controlByte,
-                        cmd.ack.port);
-                    event_t txEvent;
-                    txEvent.type = PICONET_TX_EVENT;
-                    txEvent.txEvent = result;
-                    queue_add_blocking(&event_queue, &result);
-                    break;
-                }
-            }
-        }
-
-        tEconetRxResult rxResult = receive();
-
-        if (rxResult.type != PICONET_RX_RESULT_NONE) {
-            event_t result;
-            result.type = PICONET_RX_EVENT;
-            result.rxEvent = rxResult;
-            queue_add_blocking(&event_queue, &result);
-        }
-    }
-}
-
-void core0_loop() {
-    queue_init(&command_queue, sizeof(command_t), 1);
-    queue_init(&event_queue, sizeof(event_t), 1);
-    multicore_launch_core1(core1_entry);
-
-    econet_init();
-
-    event_t event;
-    while (true) {
-        receive();
-
-        // TODO: this should not be an Rx result - should be more general
-        event_t event;
-        if (queue_try_remove(&event_queue, &event)) {
-            switch (event.type) {
-                case PICONET_TX_EVENT: {
-                    switch (event.txEvent) {
-                        case PICONET_TX_RESULT_OK:
-                            printf("TRANS: OK");
-                            break;
-                        case PICONET_TX_RESULT_ERROR_MISC:
-                            printf("TRANS: ERROR_MISC");
-                            break;
-                        case PICONET_TX_RESULT_ERROR_NO_ACK:
-                            printf("TRANS: ERROR_NO_ACK");
-                            break;
-                        case PICONET_TX_RESULT_ERROR_TIMEOUT:
-                            printf("TRANS: ERROR_TIMEOUT");
-                            break;
-                        default:
-                            printf("TRANS: WTF");
-                            break;
-                    }
-                    break;
-                }
-                case PICONET_RX_EVENT: {
-                    switch (event.rxEvent.type) {
-                        case PICONET_RX_RESULT_ERROR :
-                            printf("Error %u\n", event.rxEvent.error.type);
-                            print_status1(event.rxEvent.error.sr1);
-                            print_status2(event.rxEvent.error.sr2);
-                            printf("\n");
-                            break;
-                        case PICONET_RX_RESULT_BROADCAST :
-                            printf("BCAST: ");
-                            frame_dump(event.rxEvent.detail);
-                            break;
-                        case PICONET_RX_RESULT_IMMEDIATE_OP :
-                            printf("IMMED: ");
-                            frame_dump(event.rxEvent.detail);
-                            break;
-                        case PICONET_RX_RESULT_TRANSMIT :
-                            printf("FRAME: ");
-                            frame_dump(event.rxEvent.detail);
-                            break;
-                        default:
-                            printf("WTF2 %u\n", event.rxEvent.type);
-                            break;
-                    }
-                    break;
-                }
-                default: {
-                    printf("WTF1 %u\n", event.type);
-                    break;
-                }
-            }
         }
     }
 }

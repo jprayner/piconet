@@ -15,5 +15,6 @@
   (byte & 0x01 ? '1' : '0') 
 
 uint32_t time_ms(void);
+void hexdump(uint8_t *buffer, size_t len);
 
 #endif

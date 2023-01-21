@@ -20,7 +20,8 @@ typedef enum {
 } econet_rx_result_type_t;
 
 typedef enum {
-    ECONET_RX_ERROR_MISC = 0L,
+    ECONET_RX_ERROR_NONE = 0L,
+    ECONET_RX_ERROR_MISC,
     ECONET_RX_ERROR_UNINITIALISED,
     ECONET_RX_ERROR_CRC,
     ECONET_RX_ERROR_OVERRUN,
@@ -47,7 +48,13 @@ typedef struct
     };
 } econet_rx_result_t;
 
-bool econet_init(void);
+bool                    econet_init(
+                            uint8_t*    rx_scout_buffer,
+                            size_t      rx_scout_buffer_sz,
+                            uint8_t*    rx_data_buffer,
+                            size_t      rx_data_buffer_sz,
+                            uint8_t*    ack_buffer,
+                            size_t      ack_buffer_sz);
 econet_tx_result_t      broadcast(uint* buff, int bytes);
 econet_tx_result_t      transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint* data, size_t data_len);
 econet_rx_result_t      receive();

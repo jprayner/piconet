@@ -6,18 +6,14 @@
 #include "adlc.h"
 #include "util.h"
 
-#define RX_DATA_BUFFER_SZ   1024
-#define RX_SCOUT_BUFFER_SZ  32
-#define ACK_BUFFER_SZ  32
-
 static bool initialised;
-static uint8_t* rx_data_buffer;
-static uint8_t* rx_scout_buffer;
-static uint8_t* ack_buffer;
 
-uint cfg_scout_timeout = 100;
-uint cfg_ack_timeout = 200;
-uint cfg_tx_begin_timeout = 5000;
+static uint8_t* _rx_scout_buffer;
+static size_t   _rx_scout_buffer_sz;
+static uint8_t* _rx_data_buffer;
+static size_t   _rx_data_buffer_sz;
+static uint8_t* _ack_buffer;
+static size_t   _ack_buffer_sz;
 
 uint8_t listen_addresses[] = { 0x02, 0xFF };
 
@@ -72,7 +68,6 @@ typedef enum eFrameWriteStatus {
     FRAME_WRITE_UNEXPECTED,
 } tFrameWriteStatus;
 
-static tFrameWriteStatus        _tx_frame(uint8_t* buffer, size_t len);
 static t_frame_read_result      _read_frame(uint8_t* buffer, size_t buffer_len, uint8_t* addr, size_t addr_len, uint timeout_ms);
 static t_frame_parse_result     _parse_frame(uint8_t* buffer, size_t len, bool is_opening_frame);
 static econet_rx_result_t       _handle_first_frame();
@@ -80,6 +75,7 @@ static econet_rx_result_t       _rx_data_for_scout(t_frame_parse_result* scout_f
 static econet_rx_result_t       _handle_immediate_scout(t_frame_parse_result* immediate_scout_frame);
 static econet_rx_result_t       _handle_transmit_scout(t_frame_parse_result* transmit_scout_frame);
 static econet_rx_result_t       _handle_broadcast(t_frame_parse_result* broadcast_frame);
+static tFrameWriteStatus        _tx_frame(uint8_t* buffer, size_t len);
 static tFrameWriteStatus        _send_ack(t_frame_parse_result* incoming_frame);
 static econet_rx_result_t       _rx_result_for_error(econet_rx_error_t error);
 static econet_rx_result_t       _map_read_frame_result(t_frame_read_status status);
@@ -87,7 +83,13 @@ static void                     _abort_read(void);
 static void                     _clear_rx(void);
 static void                     _finish_tx(void);
 
-bool econet_init(void) {
+bool econet_init(
+        uint8_t*    rx_scout_buffer,
+        size_t      rx_scout_buffer_sz,
+        uint8_t*    rx_data_buffer,
+        size_t      rx_data_buffer_sz,
+        uint8_t*    ack_buffer,
+        size_t      ack_buffer_sz) {
     if (initialised) {
         return false;
     }
@@ -95,25 +97,15 @@ bool econet_init(void) {
     adlc_init();
     adlc_irq_reset();
 
-    rx_data_buffer = malloc(RX_DATA_BUFFER_SZ);
-    if (rx_data_buffer == NULL) {
-        return false;
-    }
-
-    rx_scout_buffer = malloc(RX_SCOUT_BUFFER_SZ);
-    if (rx_scout_buffer == NULL) {
-        free(rx_data_buffer);
-        return false;
-    }
-
-    ack_buffer = malloc(ACK_BUFFER_SZ);
-    if (ack_buffer == NULL) {
-        free(rx_data_buffer);
-        free(rx_scout_buffer);
-        return false;
-    }
+    _rx_scout_buffer = rx_scout_buffer;
+    _rx_scout_buffer_sz = rx_scout_buffer_sz;
+    _rx_data_buffer = rx_data_buffer;
+    _rx_data_buffer_sz = rx_data_buffer_sz;
+    _ack_buffer = ack_buffer;
+    _ack_buffer_sz = ack_buffer_sz;
 
     initialised = true;
+
     return true;
 }
 
@@ -124,6 +116,7 @@ econet_rx_result_t receive() {
 
     econet_rx_result_t result;
     result.type = PICONET_RX_RESULT_NONE;
+    result.error = ECONET_RX_ERROR_NONE;
 
     uint status_reg_1 = adlc_read(REG_STATUS_1);
 
@@ -161,7 +154,7 @@ econet_rx_result_t monitor() {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
-            t_frame_read_result read_frame_result = _read_frame(rx_data_buffer, RX_DATA_BUFFER_SZ, listen_addresses, 0, 2000);
+            t_frame_read_result read_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, listen_addresses, 0, 2000);
             _clear_rx();
 
             if (read_frame_result.status != FRAME_READ_OK) {
@@ -169,7 +162,7 @@ econet_rx_result_t monitor() {
             }
 
             result.type = PICONET_RX_RESULT_MONITOR;
-            result.detail.data = rx_data_buffer;
+            result.detail.data = _rx_data_buffer;
             result.detail.data_len = read_frame_result.bytes_read;
         }
 
@@ -358,7 +351,7 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
             return _rx_result_for_error(ECONET_RX_ERROR_TIMEOUT);
         }
 
-        data_frame_result = _read_frame(rx_data_buffer, RX_DATA_BUFFER_SZ, listen_addresses, sizeof(listen_addresses), 2000);
+        data_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, listen_addresses, sizeof(listen_addresses), 2000);
         if (data_frame_result.status == FRAME_READ_OK) {
             break;
         }
@@ -366,7 +359,7 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
         _abort_read();
     }
 
-    t_frame_parse_result data_frame = _parse_frame(rx_data_buffer, data_frame_result.bytes_read, false);
+    t_frame_parse_result data_frame = _parse_frame(_rx_data_buffer, data_frame_result.bytes_read, false);
     if (data_frame.type != FRAME_TYPE_DATA) {
         printf("[_rx_data_for_scout] parse failed type=%u len=%u - aborting", data_frame.type, data_frame_result.bytes_read);
         _abort_read();
@@ -408,14 +401,14 @@ static econet_rx_result_t _handle_broadcast(t_frame_parse_result* broadcast_fram
 }
 
 static econet_rx_result_t _handle_first_frame() {
-    t_frame_read_result read_frame_result = _read_frame(rx_scout_buffer, RX_SCOUT_BUFFER_SZ, listen_addresses, sizeof(listen_addresses), 2000);
+    t_frame_read_result read_frame_result = _read_frame(_rx_scout_buffer, _rx_scout_buffer_sz, listen_addresses, sizeof(listen_addresses), 2000);
 
     if (read_frame_result.status != FRAME_READ_OK) {
         _clear_rx();
         return _map_read_frame_result(read_frame_result.status);
     }
 
-    t_frame_parse_result result = _parse_frame(rx_scout_buffer, read_frame_result.bytes_read, true);
+    t_frame_parse_result result = _parse_frame(_rx_scout_buffer, read_frame_result.bytes_read, true);
     switch (result.type) {
         case FRAME_TYPE_TRANSMIT :
             return _handle_transmit_scout(&result);
