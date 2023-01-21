@@ -16,7 +16,7 @@
 //define DEBUG
 
 #define TX_DATA_BUFFER_SZ       1024
-#define RX_DATA_BUFFER_SZ       1024
+#define RX_DATA_BUFFER_SZ       3500
 #define RX_SCOUT_BUFFER_SZ      32
 #define ACK_BUFFER_SZ           32
 #define B64_BUFFER_SZ           RX_DATA_BUFFER_SZ * 2
