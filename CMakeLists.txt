@@ -11,6 +11,8 @@ add_executable(piconet
     econet.c
     adlc.c
     util.c
+    lib/b64/cdecode.c
+    lib/b64/cencode.c
 )
 
 pico_generate_pio_header(piconet ${CMAKE_CURRENT_LIST_DIR}/pinctl.pio)

@@ -1,4 +1,6 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 #include "pico/stdlib.h"
 #include "pico/util/queue.h"
@@ -9,23 +11,43 @@
 #include "econet.h"
 #include "adlc.h"
 #include "util.h"
+#include "./lib/b64/cencode.h"
 
 //define DEBUG
 
-#define RX_DATA_BUFFER_SZ   1024
-#define RX_SCOUT_BUFFER_SZ  32
-#define ACK_BUFFER_SZ       32
+#define TX_DATA_BUFFER_SZ       1024
+#define RX_DATA_BUFFER_SZ       1024
+#define RX_SCOUT_BUFFER_SZ      32
+#define ACK_BUFFER_SZ           32
+#define B64_BUFFER_SZ           RX_DATA_BUFFER_SZ * 2
+#define CMD_BUFFER_SZ           TX_DATA_BUFFER_SZ * 2
 
-#define VERSION_MAJOR       0
-#define VERSION_MINOR       1
-#define VERSION_REV         1
+#define VERSION_MAJOR           0
+#define VERSION_MINOR           1
+#define VERSION_REV             1
+#define VERSION_STR_MAXLEN      16
 
-const uint CMD_RECEIVE = 1;
+#define CMD_STATUS              "STATUS"
+#define CMD_RESTART             "RESTART"
+#define CMD_SET_MODE            "SET_MODE"
+#define CMD_SET_STATION         "SET_STATION"
+#define CMD_TX                  "TX"
+
+#define CMD_PARAM_MODE_STOP     "STOP"
+#define CMD_PARAM_MODE_LISTEN   "LISTEN"
+#define CMD_PARAM_MODE_MONITOR  "MONITOR"
 
 typedef enum ePiconetEventType {
-    PICONET_RX_EVENT = 0L,
+    PICONET_STATUS_EVENT = 0L,
+    PICONET_RX_EVENT,
     PICONET_TX_EVENT
 } tPiconetEventType;
+
+typedef enum {
+    PICONET_CMD_SET_MODE_STOP = 0L,
+    PICONET_CMD_SET_MODE_LISTEN,
+    PICONET_CMD_SET_MODE_MONITOR
+} piconet_mode_t;
 
 typedef struct {
     econet_rx_result_type_t type;
@@ -36,37 +58,51 @@ typedef struct {
     size_t                  data_len;
 } econet_rx_event_t;
 
+typedef struct {
+    char                    version[VERSION_STR_MAXLEN];
+    uint8_t                 status_register_1;
+    piconet_mode_t          mode;
+} event_status_t;
+
 typedef struct
 {
     tPiconetEventType type;
     union {
-        econet_rx_event_t   rx_event_detail;  // if type == PICONET_RX_EVENT
-        econet_rx_result_t  tx_event_detail; // if type == PICONET_TX_EVENT
+        econet_rx_event_t   rx_event_detail;    // if type == PICONET_RX_EVENT
+        econet_rx_result_t  tx_event_detail;    // if type == PICONET_TX_EVENT
+        event_status_t      status;             // if type == PICONET_STATUS_EVENT
     };
 } event_t;
 
-typedef enum ePiconetCommandType {
-    PICONET_CMD_ACK = 0L
-} tPiconetCommandType;
+typedef enum {
+    PICONET_CMD_STATUS = 0L,
+    PICONET_CMD_RESTART,
+    PICONET_CMD_SET_MODE,
+    PICONET_CMD_SET_STATION,
+    PICONET_CMD_TX
+} cmd_type_t;
 
-typedef struct AckCommand
-{
-    uint senderStation;
-    uint senderNetwork;
-    uint controlByte;
-    uint port;
-} tAckCommand;
+typedef struct {
+    uint8_t                 dest_station;
+    uint8_t                 dest_network;
+    uint8_t                 data[TX_DATA_BUFFER_SZ];
+    size_t                  data_len;
+} cmd_tx_t;
 
-typedef struct
-{
-    tPiconetCommandType type;
+typedef struct {
+    cmd_type_t type;
     union {
-        tAckCommand ack;
+        piconet_mode_t      set_mode;   // if type == PICONET_CMD_SET_MODE
+        cmd_tx_t            tx;         // if type == PICONET_CMD_TX
+        uint8_t             station;    // if type == PICONET_CMD_ACK
     };
 } command_t;
 
+const uint CMD_RECEIVE = 1;
 queue_t command_queue;
 queue_t event_queue;
+command_t cmd;
+char* b64_buffer;
 
 void    _core0_loop(void);
 void    _core1_loop(void);
@@ -78,6 +114,12 @@ int main() {
     sleep_ms(2000); // give client a chance to reconnect
     printf("Piconet v.%d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_REV);
 
+    b64_buffer = malloc(B64_BUFFER_SZ);
+    if (b64_buffer == NULL) {
+        printf("Failed to allocate memory for base64 buffer");
+        return 1;
+    }
+
     queue_init(&command_queue, sizeof(command_t), 1);
     queue_init(&event_queue, sizeof(event_t), 8);
     multicore_launch_core1(_core1_loop);
@@ -86,9 +128,10 @@ int main() {
 }
 
 void _core1_loop(void) {
-    command_t cmd;
-    event_t event;
-    uint8_t ack_buffer[ACK_BUFFER_SZ];
+    command_t       received_command;
+    event_t         event;
+    uint8_t         ack_buffer[ACK_BUFFER_SZ];
+    piconet_mode_t  mode = PICONET_CMD_SET_MODE_STOP;
 
     if (!econet_init(
             event.rx_event_detail.scout,
@@ -102,24 +145,44 @@ void _core1_loop(void) {
     }
 
     while (true) {
-        if (queue_try_remove(&command_queue, &cmd)) {
-            switch (cmd.type) {
-                case PICONET_CMD_ACK: {
-                    // tEconetTxResult result = ack_scout(
-                    //     cmd.ack.senderStation,
-                    //     cmd.ack.senderNetwork,
-                    //     cmd.ack.controlByte,
-                    //     cmd.ack.port);
-                    // event_t txEvent;
-                    // txEvent.type = PICONET_TX_EVENT;
-                    // txEvent.txEvent = result;
-                    // queue_add_blocking(&event_queue, &result);
+        if (queue_try_remove(&command_queue, &received_command)) {
+    //              = 0L,
+    // PICONET_CMD_RESTART,
+    // PICONET_CMD_SET_MODE,
+    // PICONET_CMD_SET_STATION,
+    // PICONET_CMD_TX
+
+            switch (received_command.type) {
+                case PICONET_CMD_STATUS:
+                    event.type = PICONET_STATUS_EVENT;
+                    sprintf(event.status.version, "%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_REV);
+                    event.status.status_register_1 = adlc_read(REG_STATUS_2);
+                    event.status.mode = mode;
+                    queue_add_blocking(&event_queue, &event);
                     break;
-                }
+                case PICONET_CMD_RESTART:
+                    adlc_reset();
+                    break;
+                case PICONET_CMD_SET_MODE:
+                    mode = received_command.set_mode;
+                    break;
+                case PICONET_CMD_SET_STATION:
+                    break;
+                case PICONET_CMD_TX:
+                    // econet_tx(
+                    //     received_command.tx.dest_station,
+                    //     received_command.tx.dest_network,
+                    //     received_command.tx.data,
+                    //     received_command.tx.data_len);
+                    break;
             }
         }
 
-        econet_rx_result_t rx_result = monitor();
+        if (mode == PICONET_CMD_SET_MODE_STOP) {
+            continue;
+        }
+
+        econet_rx_result_t rx_result = (mode == PICONET_CMD_SET_MODE_MONITOR) ? monitor() : receive();
 
         if (rx_result.type == PICONET_RX_RESULT_NONE) {
             continue;
@@ -139,13 +202,110 @@ void _core1_loop(void) {
     }
 }
 
+char* encode(const char* input, size_t len) {
+    char* c = b64_buffer;
+	int cnt = 0;
+	base64_encodestate s;
+	
+	base64_init_encodestate(&s);
+	cnt = base64_encode_block(input, len, c, &s);
+	c += cnt;
+	cnt = base64_encode_blockend(c, &s);
+	c += cnt;
+	*c = 0;
+	
+	return b64_buffer;
+}
+
+void _read_command_input(void) {
+    static char buffer[CMD_BUFFER_SZ];
+    static int buffer_pos = 0;
+
+    int c = getchar_timeout_us(0);
+    if (c == PICO_ERROR_TIMEOUT) {
+        return;
+    }
+
+    if (c == '\r') {
+        buffer[buffer_pos] = 0;
+        buffer_pos = 0;
+
+        char delim[] = " ";
+        char *ptr = strtok(buffer, delim);
+
+        if (ptr == NULL) {
+            return;
+        }
+
+        bool error = false;
+        if (strcmp(ptr, CMD_STATUS) == 0) {
+            cmd.type = PICONET_CMD_STATUS;
+        } else if (strcmp(ptr, CMD_RESTART) == 0) {
+            cmd.type = PICONET_CMD_RESTART;
+        } else if (strcmp(ptr, CMD_SET_MODE) == 0) {
+            cmd.type = PICONET_CMD_SET_MODE;
+            const char *mode = strtok(NULL, delim);
+            if (mode == NULL) {
+                error = true;
+            } else if (strcmp(mode, CMD_PARAM_MODE_STOP) == 0) {
+                cmd.set_mode = PICONET_CMD_SET_MODE_STOP;
+            } else if (strcmp(mode, CMD_PARAM_MODE_LISTEN) == 0) {
+                cmd.set_mode = PICONET_CMD_SET_MODE_LISTEN;
+            } else if (strcmp(mode, CMD_PARAM_MODE_MONITOR) == 0) {
+                cmd.set_mode = PICONET_CMD_SET_MODE_MONITOR;
+            } else {
+                error = true;
+            }
+        } else if (strcmp(ptr, CMD_SET_STATION) == 0) {
+            cmd.type = PICONET_CMD_SET_STATION;
+            const char *station_str = strtok(NULL, delim);
+            if (station_str == NULL) {
+                error = true;
+            } else {
+                long station = strtol(station_str, NULL, 10);
+                if (station < 0 || station > 0xff) {
+                    error = true;
+                } else {
+                    cmd.station = station;
+                }
+            }
+        } else if (strcmp(ptr, CMD_TX) == 0) {
+            cmd.type = PICONET_CMD_TX;
+            // TODO decode packet etc
+        } else {
+            error = true;
+        }
+
+        if (error) {
+            printf("WHAT??\n");
+        } else {
+            queue_add_blocking(&command_queue, &cmd);
+        }
+    } else {
+        if (buffer_pos >= sizeof(buffer)) {
+            return;
+        }
+        buffer[buffer_pos++] = c;
+    }
+}
+
 void _core0_loop(void) {
     event_t event;
     while (true) {
+        _read_command_input();
+
         if (!queue_try_remove(&event_queue, &event)) {
             continue;
         }
         switch (event.type) {
+            case PICONET_STATUS_EVENT: {
+                printf(
+                    "STATUS: %s %02x %d\n",
+                    event.status.version,
+                    event.status.status_register_1,
+                    event.status.mode);
+                break;
+            }
             case PICONET_TX_EVENT: {
                 switch (event.tx_event_detail.type) {
                     case PICONET_TX_RESULT_OK:
@@ -176,7 +336,7 @@ void _core0_loop(void) {
                         hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
                         break;
                     case PICONET_RX_RESULT_MONITOR :
-                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        printf("MON: %s\n", encode(event.rx_event_detail.data, event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_IMMEDIATE_OP :
                         printf("IMMED:");
