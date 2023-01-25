@@ -60,6 +60,7 @@ typedef struct {
 
 typedef struct {
     char                    version[VERSION_STR_MAXLEN];
+    uint8_t                 station;
     uint8_t                 status_register_1;
     piconet_mode_t          mode;
 } event_status_t;
@@ -156,6 +157,7 @@ void _core1_loop(void) {
                 case PICONET_CMD_STATUS:
                     event.type = PICONET_STATUS_EVENT;
                     sprintf(event.status.version, "%d.%d.%d", VERSION_MAJOR, VERSION_MINOR, VERSION_REV);
+                    event.status.station = get_station();
                     event.status.status_register_1 = adlc_read(REG_STATUS_2);
                     event.status.mode = mode;
                     queue_add_blocking(&event_queue, &event);
@@ -167,6 +169,7 @@ void _core1_loop(void) {
                     mode = received_command.set_mode;
                     break;
                 case PICONET_CMD_SET_STATION:
+                    set_station(received_command.station);
                     break;
                 case PICONET_CMD_TX:
                     // econet_tx(
@@ -300,8 +303,9 @@ void _core0_loop(void) {
         switch (event.type) {
             case PICONET_STATUS_EVENT: {
                 printf(
-                    "STATUS: %s %02x %d\n",
+                    "STATUS: %s %d %02x %d\n",
                     event.status.version,
+                    event.status.station,
                     event.status.status_register_1,
                     event.status.mode);
                 break;

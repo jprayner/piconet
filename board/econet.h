@@ -55,9 +55,11 @@ bool                    econet_init(
                             size_t      rx_data_buffer_sz,
                             uint8_t*    ack_buffer,
                             size_t      ack_buffer_sz);
-econet_tx_result_t      broadcast(uint* buff, int bytes);
+econet_tx_result_t      broadcast(uint8_t* buff, int bytes);
 econet_tx_result_t      transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint* data, size_t data_len);
 econet_rx_result_t      receive();
 econet_rx_result_t      monitor();
+uint8_t                 get_station();
+void                    set_station(uint8_t station);
 
 #endif

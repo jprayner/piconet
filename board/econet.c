@@ -175,6 +175,14 @@ econet_rx_result_t monitor() {
     return result;
 }
 
+uint8_t get_station() {
+    return listen_addresses[0];
+}
+
+void set_station(uint8_t station) {
+    listen_addresses[0] = station;
+}
+
 static t_frame_parse_result _parse_frame(uint8_t* buffer, size_t len, bool is_opening_frame) {
     t_frame_parse_result result;
 
