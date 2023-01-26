@@ -1,7 +1,9 @@
 import { autoDetect } from '@serialport/bindings-cpp';
 import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
-import { Connection } from '../types/connection';
+import { Connection } from './connection';
+
+const connections = new Map<string, Connection>();
 
 export const list = async () => {
   const Binding = autoDetect();
@@ -23,29 +25,6 @@ const autoDetectDevice = async (): Promise<string> => {
 
 export const connect = async (requestedDevice?: string): Promise<Connection> => {
   const deviceToUse = requestedDevice ?? (await autoDetectDevice());
-  console.log(`Connecting to ${deviceToUse}...`);
-  return new Promise((resolve, reject) => {
-    const port = new SerialPort({
-      path: deviceToUse,
-      baudRate: 115200,
-    });
-    port.write('STATUS\r', (err) => {
-      if (err) {
-        reject(`Error on write: ${err.message}`);
-        return;
-      }
-      console.log('message written');
-    });
-    port.on('error', (err) => {
-      reject(`Error: ${err.message}`);
-    });
-
-    const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
-    parser.on('data', (data) => {
-      console.log(data);
-      resolve({ device: requestedDevice, port });
-    });
-  });
 };
 
 export const close = async (connection: Connection): Promise<void> => {
