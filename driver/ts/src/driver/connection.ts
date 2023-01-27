@@ -6,15 +6,23 @@ import { parseStatusEvent } from '../parser/status';
 import { parseMonitorEvent } from '../parser/monitor';
 import { MonitorEvent } from '../types/monitorEvent';
 import { waitForEvent } from './waitEvent';
+import { TransmitEvent } from '../types/transmitEvent';
+import { ImmediateEvent } from '../types/immediateEvent';
+import { BroadcastEvent } from '../types/broadcastEvent';
+import { ErrorEvent } from '../types/errorEvent';
+import { parseErrorEvent } from '../parser/error';
+import { parseImmediateEvent } from '../parser/immediate';
+import { parseTransmitEvent } from '../parser/transmit';
+import { parseBroadcastEvent } from '../parser/broadcast';
 
 enum ConnectionState {
-  Disconnected,
-  Connecting,
-  Connected,
-  Error,
+  Disconnected = 'Disconnected',
+  Connected = 'Connected',
+  Disconnecting = 'Disconnecting',  
+  Error = 'Error',
 }
 
-export type ConnectionEvent = StatusEvent | MonitorEvent;
+export type ConnectionEvent = StatusEvent | ErrorEvent | MonitorEvent | TransmitEvent | ImmediateEvent | BroadcastEvent;
 export type Listener = (event: ConnectionEvent) => void;
 
 export class Connection {
@@ -35,10 +43,9 @@ export class Connection {
 
   public async connect(): Promise<void> {
     if (this.state !== ConnectionState.Disconnected) {
-      throw new Error(`Device ${this.device} already connected`);
+      throw new Error(`Cannot connect device '${this.device}' whilst in ${this.state} state`);
     }
 
-    console.log(`Connecting to ${this.device}...`);
     return new Promise((resolve, reject) => {
       this.port = new SerialPort({
         path: this.device,
@@ -48,10 +55,10 @@ export class Connection {
       const parser = this.port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
       parser.on('data', (data) => this.handleData(data as string));
 
+      this.state = ConnectionState.Connected;
+
       this.readStatus()
         .then((status) => {
-          this.state = ConnectionState.Connected;
-          this.lastStatusEvent = status;
           this.fireListeners(status);
           resolve();
         })
@@ -63,6 +70,10 @@ export class Connection {
   }
 
   public async setMode(mode: RxMode): Promise<void> {
+    if (this.state !== ConnectionState.Connected) {
+      throw new Error(`Cannot set mode on device '${this.device}' whilst in ${this.state} state`);
+    }
+
     switch (mode) {
       case RxMode.Stopped:
         return this.sendCommand('SET_MODE STOP');
@@ -76,18 +87,42 @@ export class Connection {
       default:
         throw new Error('Invalid mode');
     }
+
+    await this.readStatus();
+  }
+
+  public async setEconetStation(station: number): Promise<void> {
+    if (this.state !== ConnectionState.Connected) {
+      throw new Error(`Cannot set econet station number on device '${this.device}' whilst in ${this.state} state`);
+    }
+
+    if (station < 1 || station >= 255) {
+      throw new Error('Invalid station number');
+    }
+
+    await this.sendCommand(`SET_STATION ${station}`);
+    await this.readStatus();
   }
 
   public async close(): Promise<void> {
+    if (this.state !== ConnectionState.Connected) {
+      throw new Error(`Cannot close device '${this.device}' whilst in ${this.state} state`);
+    }
+
     return new Promise((resolve, reject) => {
       this.port.drain((drainError) => {
         if (drainError) {
           reject(`Error on drain for close command: ${drainError.message}`);
           return;
         }
-        this.state = ConnectionState.Connecting;
-
-        resolve();
+        this.port.close((closeError) => {
+          if (closeError) {
+            reject(`Error closing port: ${closeError.message}`);
+            return;
+          }
+          this.state = ConnectionState.Disconnected;
+          resolve();
+        });
       });
     });
   }
@@ -107,31 +142,45 @@ export class Connection {
 	};
 
   private handleData(data: string) {
-    console.log(`Received: ${data}`);
+    if (this.state !== ConnectionState.Connected) {
+      return;
+    }
+
     try {
-      console.log(`is it status event: ${data}`);
       const statusEvent = parseStatusEvent(data);
       if (statusEvent) {
         this.lastStatusEvent = statusEvent;
-        console.log(`firing status event: ${data}`);
         this.fireListeners(statusEvent);
       }
       const monitorEvent = parseMonitorEvent(data);
       if (monitorEvent) {
-        console.log(`firing monitor event: ${data}`);
         this.fireListeners(monitorEvent);
       }
+      const immediateEvent = parseImmediateEvent(data);
+      if (immediateEvent) {
+        this.fireListeners(immediateEvent);
+      }
+      const transmitEvent = parseTransmitEvent(data);
+      if (transmitEvent) {
+        this.fireListeners(transmitEvent);
+      }
+      const broadcastEvent = parseBroadcastEvent(data);
+      if (broadcastEvent) {
+        this.fireListeners(broadcastEvent);
+      }
+      const errorEvent = parseErrorEvent(data);
+      if (errorEvent) {
+        this.fireListeners(errorEvent);
+      }
     } catch (error) {
-      // TODO do we need to disconnect here?
-      console.error('Stopping connection due to protocol error', error);
-      this.state = ConnectionState.Error;
+      console.error('Protocol error', error);
     }
   }
 
   private async readStatus(): Promise<StatusEvent> {
-    // if (this.state !== ConnectionState.Connected) {
-    //   throw new Error('Not connected');
-    // }
+    if (this.state !== ConnectionState.Connected) {
+      throw new Error(`Cannot read status from device '${this.device}' whilst in ${this.state} state`);
+    }
 
     await this.sendCommand('STATUS');
 

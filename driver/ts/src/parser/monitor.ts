@@ -3,7 +3,7 @@ import { MonitorEvent } from '../types/monitorEvent';
 export const parseMonitorEvent = (event: string): MonitorEvent | undefined => {
   const terms = event.split(' ');
 
-  if (terms.length == 0 || terms[0] !== 'MON') {
+  if (terms.length == 0 || terms[0] !== 'MONITOR') {
     return undefined;
   }
 

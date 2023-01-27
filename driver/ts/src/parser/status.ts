@@ -5,7 +5,7 @@ import config from '../config';
 export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   const terms = event.split(' ');
 
-  if (terms.length == 0 || terms[0] !== 'STATUS:') {
+  if (terms.length == 0 || terms[0] !== 'STATUS') {
     return undefined;
   }
 

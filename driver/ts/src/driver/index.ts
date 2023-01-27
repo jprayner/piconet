@@ -34,3 +34,8 @@ export const connect = async (requestedDevice?: string): Promise<Connection> => 
   connections.set(deviceToUse, connection);
   return connection;
 };
+
+export const close = async (connection: Connection): Promise<void> => {
+  await connection.close();
+  connections.delete(connection.device);
+};
