@@ -103,7 +103,8 @@ const uint CMD_RECEIVE = 1;
 queue_t command_queue;
 queue_t event_queue;
 command_t cmd;
-char* b64_buffer;
+char* b64_scout_buffer;
+char* b64_data_buffer;
 
 void    _core0_loop(void);
 void    _core1_loop(void);
@@ -115,9 +116,16 @@ int main() {
     sleep_ms(2000); // give client a chance to reconnect
     printf("Piconet v.%d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_REV);
 
-    b64_buffer = malloc(B64_BUFFER_SZ);
-    if (b64_buffer == NULL) {
-        printf("Failed to allocate memory for base64 buffer");
+    // TODO: scout buffer could be smaller
+    b64_scout_buffer = malloc(B64_BUFFER_SZ);
+    if (b64_scout_buffer == NULL) {
+        printf("Failed to allocate memory for base64 scout buffer");
+        return 1;
+    }
+
+    b64_data_buffer = malloc(B64_BUFFER_SZ);
+    if (b64_data_buffer == NULL) {
+        printf("Failed to allocate memory for base64 data buffer");
         return 1;
     }
 
@@ -205,8 +213,8 @@ void _core1_loop(void) {
     }
 }
 
-char* encode(const char* input, size_t len) {
-    char* c = b64_buffer;
+char* encode(char* output_buffer, const char* input, size_t len) {
+    char* c = output_buffer;
 	int cnt = 0;
 	base64_encodestate s;
 	
@@ -217,7 +225,7 @@ char* encode(const char* input, size_t len) {
 	c += cnt;
 	*c = 0;
 	
-	return b64_buffer;
+	return output_buffer;
 }
 
 void _read_command_input(void) {
@@ -303,7 +311,7 @@ void _core0_loop(void) {
         switch (event.type) {
             case PICONET_STATUS_EVENT: {
                 printf(
-                    "STATUS: %s %d %02x %d\n",
+                    "STATUS %s %d %02x %d\n",
                     event.status.version,
                     event.status.station,
                     event.status.status_register_1,
@@ -333,28 +341,25 @@ void _core0_loop(void) {
             case PICONET_RX_EVENT: {
                 switch (event.rx_event_detail.type) {
                     case PICONET_RX_RESULT_ERROR :
-                        printf("%s\n", _rx_error_to_str(event.rx_event_detail.error));
+                        printf("ERROR %s\n", _rx_error_to_str(event.rx_event_detail.error));
                         break;
                     case PICONET_RX_RESULT_BROADCAST :
-                        printf("BCAST:\n    ");
-                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        printf("BROADCAST %s\n", encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_MONITOR :
-                        printf("MON: %s\n", encode(event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        printf("MONITOR %s\n", encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_IMMEDIATE_OP :
-                        printf("IMMED:");
-                        printf("\n   ");
-                        hexdump(event.rx_event_detail.scout, event.rx_event_detail.scout_len);
-                        printf("   ");
-                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        printf(
+                            "IMMEDIATE %s %s\n",
+                            encode(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
+                            encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_TRANSMIT :
-                        printf("TRANS: ");
-                        printf("\n   ");
-                        hexdump(event.rx_event_detail.scout, event.rx_event_detail.scout_len);
-                        printf("   ");
-                        hexdump(event.rx_event_detail.data, event.rx_event_detail.data_len);
+                        printf(
+                            "TRANSMIT %s %s\n",
+                            encode(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
+                            encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
                         break;
                 }
                 break;
