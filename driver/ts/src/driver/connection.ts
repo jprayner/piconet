@@ -76,13 +76,13 @@ export class Connection {
 
     switch (mode) {
       case RxMode.Stopped:
-        return this.sendCommand('SET_MODE STOP');
+        await this.sendCommand('SET_MODE STOP');
         break;
       case RxMode.Monitoring:
-        return this.sendCommand('SET_MODE MONITOR');
+        await this.sendCommand('SET_MODE MONITOR');
         break;
       case RxMode.Listening:
-        return this.sendCommand('SET_MODE LISTEN');
+        await this.sendCommand('SET_MODE LISTEN');
         break;
       default:
         throw new Error('Invalid mode');

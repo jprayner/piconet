@@ -10,9 +10,9 @@ export const parseMonitorEvent = (event: string): MonitorEvent | undefined => {
   if (terms.length < 2) {
     throw new Error(`Protocol error. Invalid MONITOR event '${event}' received.`);
   }
-  const attibutes = terms.slice(1);
+  const attributes = terms.slice(1);
 
-  const data = attibutes[0];
+  const data = attributes[0];
   try {
     return {
       type: 'monitor',

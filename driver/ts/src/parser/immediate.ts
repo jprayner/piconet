@@ -10,10 +10,10 @@ export const parseImmediateEvent = (event: string): ImmediateEvent | undefined =
   if (terms.length < 3) {
     throw new Error(`Protocol error. Invalid IMMEDIATE event '${event}' received.`);
   }
-  const attibutes = terms.slice(1);
+  const attributes = terms.slice(1);
 
-  const scout = attibutes[0];
-  const data = attibutes[1];
+  const scout = attributes[0];
+  const data = attributes[1];
   try {
     return {
       type: 'immediate',
