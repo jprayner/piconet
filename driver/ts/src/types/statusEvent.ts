@@ -1,13 +1,14 @@
-export enum RxState {
-  Stop,
-  Listen,
-  Monitor,
+export enum RxMode {
+  Stopped,
+  Listening,
+  Monitoring,
 }
 
-export type BoardState = {
+export type StatusEvent = {
+  type: 'status';
   driverVersion: string;
   firmwareVersion: string;
   econetStation: number;
   statusRegister1: number;
-  rxState: RxState;
+  rxMode: RxMode;
 };

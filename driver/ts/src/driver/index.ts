@@ -25,17 +25,12 @@ const autoDetectDevice = async (): Promise<string> => {
 
 export const connect = async (requestedDevice?: string): Promise<Connection> => {
   const deviceToUse = requestedDevice ?? (await autoDetectDevice());
-};
-
-export const close = async (connection: Connection): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    connection.port.close((err) => {
-      if (err) {
-        reject(`Error on close: ${err.message}`);
-        return;
-      }
-      console.log('Port closed');
-      resolve();
-    });
-  });
+  console.log(`Connecting to ${deviceToUse}...`);
+  if (connections.has(deviceToUse)) {
+    throw new Error(`Device ${deviceToUse} already connected`);
+  }
+  const connection = new Connection(deviceToUse);
+  await connection.connect();
+  connections.set(deviceToUse, connection);
+  return connection;
 };

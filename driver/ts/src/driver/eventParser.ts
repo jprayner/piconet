@@ -1,8 +1,8 @@
-import { BoardState, RxState } from '../types/statusEvent';
+import { StatusEvent, RxMode } from '../types/statusEvent';
 import { areVersionsCompatible, parseSemver } from './semver';
 import config from './config';
 
-export const parseEvent = (event: string): BoardState | undefined => {
+export const parseEvent = (event: string): StatusEvent | undefined => {
   if (event.startsWith('STATUS ')) {
     // STATUS 0.1.1 32 04 0
 
@@ -46,16 +46,16 @@ export const parseEvent = (event: string): BoardState | undefined => {
     }
 
     const boardStateStr = terms[3];
-    let boardState: RxState | undefined = undefined;
+    let boardState: RxMode | undefined = undefined;
     switch (parseInt(boardStateStr, 10)) {
       case 0:
-        boardState = RxState.Stop;
+        boardState = RxMode.Stopped;
         break;
       case 1:
-        boardState = RxState.Listen;
+        boardState = RxMode.Listening;
         break;
       case 2:
-        boardState = RxState.Monitor;
+        boardState = RxMode.Monitoring;
         break;
       default:
         throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Invalid board state value '${boardStateStr}'.`);
@@ -65,7 +65,7 @@ export const parseEvent = (event: string): BoardState | undefined => {
       driverVersion: driverVersionStr,
       firmwareVersion: boardVersionStr,
       econetStation: parseInt(econetStationStr, 10),
-      rxState: boardState,
+      rxMode: boardState,
     };
   }
 
