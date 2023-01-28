@@ -12,10 +12,10 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   if (terms.length < 2) {
     throw new Error(`Protocol error. Invalid STATUS event '${event}' received.`);
   }
-  const attibutes = terms.slice(1);
+  const attributes = terms.slice(1);
 
   const driverVersionStr = config.version;
-  const boardVersionStr = attibutes[0];
+  const boardVersionStr = attributes[0];
   try {
     parseSemver(boardVersionStr);
   } catch (e) {
@@ -28,18 +28,18 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
     throw new Error(`Driver version ${driverVersionStr} is not compatible with board version ${boardVersionStr}.`);
   }
 
-  if (attibutes.length !== 4) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Expected 4 attributes, got ${attibutes.length}`);
+  if (attributes.length !== 4) {
+    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Expected 4 attributes, got ${attributes.length}`);
   }
 
-  const econetStationStr = attibutes[1];
+  const econetStationStr = attributes[1];
   if (isNaN(parseInt(econetStationStr, 10))
       || parseInt(econetStationStr, 10) < 0
       || parseInt(econetStationStr, 10) > 255) {
     throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Invalid econet station '${econetStationStr}'.`);
   }
 
-  const statusRegister1Str = attibutes[2];
+  const statusRegister1Str = attributes[2];
   if (
       isNaN(parseInt(statusRegister1Str, 16))
       || parseInt(statusRegister1Str, 16) < 0x00
@@ -47,7 +47,7 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
     throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Invalid status register 1 value '${statusRegister1Str}'.`);
   }
 
-  const boardStateStr = attibutes[3];
+  const boardStateStr = attributes[3];
   let rxState: RxMode | undefined = undefined;
   switch (parseInt(boardStateStr, 10)) {
     case 0:
