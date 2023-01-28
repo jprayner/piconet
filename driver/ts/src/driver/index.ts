@@ -24,10 +24,10 @@ export type EconetEvent = StatusEvent | ErrorEvent | MonitorEvent | TransmitEven
 export type Listener = (event: EconetEvent) => void;
 type EventMatcher = (event: EconetEvent) => boolean;
 
+const parsers = [ parseStatusEvent, parseErrorEvent, parseMonitorEvent, parseTransmitEvent, parseImmediateEvent, parseBroadcastEvent ];
 let device: string;
 let listeners: Array<Listener> = [ ];
 let state: ConnectionState = ConnectionState.Disconnected;
-let lastStatusEvent: StatusEvent | undefined;
 
 export const connect = async (requestedDevice?: string): Promise<void> => {
   if (state !== ConnectionState.Disconnected && state !== ConnectionState.Error) {
@@ -109,32 +109,12 @@ const handleData = (data: string) => {
   }
 
   try {
-    const statusEvent = parseStatusEvent(data);
-    if (statusEvent) {
-      console.log('got status');
-      lastStatusEvent = statusEvent;
-      fireListeners(statusEvent);
-    }
-    const monitorEvent = parseMonitorEvent(data);
-    if (monitorEvent) {
-      fireListeners(monitorEvent);
-    }
-    const immediateEvent = parseImmediateEvent(data);
-    if (immediateEvent) {
-      fireListeners(immediateEvent);
-    }
-    const transmitEvent = parseTransmitEvent(data);
-    if (transmitEvent) {
-      fireListeners(transmitEvent);
-    }
-    const broadcastEvent = parseBroadcastEvent(data);
-    if (broadcastEvent) {
-      fireListeners(broadcastEvent);
-    }
-    const errorEvent = parseErrorEvent(data);
-    if (errorEvent) {
-      fireListeners(errorEvent);
-    }
+    parsers.forEach(parser => {
+      const event = parser(data);
+      if (event) {
+        fireListeners(event);
+      }
+    });
   } catch (error) {
     console.error('Protocol error', error);
   }
