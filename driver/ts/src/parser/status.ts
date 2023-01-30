@@ -1,6 +1,5 @@
 import { StatusEvent, RxMode } from '../types/statusEvent';
-import { areVersionsCompatible, parseSemver } from '../driver/semver';
-import config from '../config';
+import { parseSemver } from '../driver/semver';
 
 export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   const terms = event.split(' ');
@@ -14,18 +13,11 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   }
   const attributes = terms.slice(1);
 
-  const driverVersionStr = config.version;
-  const boardVersionStr = attributes[0];
+  const firmwareVersionStr = attributes[0];
   try {
-    parseSemver(boardVersionStr);
+    parseSemver(firmwareVersionStr);
   } catch (e) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Board reports invalid version '${boardVersionStr}'.`);
-  }
-
-  const boardVersion = parseSemver(boardVersionStr);
-  const driverVersion = parseSemver(driverVersionStr);
-  if (!areVersionsCompatible(boardVersion, driverVersion)) {
-    throw new Error(`Driver version ${driverVersionStr} is not compatible with board version ${boardVersionStr}.`);
+    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Board reports invalid version '${firmwareVersionStr}'.`);
   }
 
   if (attributes.length !== 4) {
@@ -65,8 +57,7 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
 
   return {
     type: 'status',
-    driverVersion: driverVersionStr,
-    firmwareVersion: boardVersionStr,
+    firmwareVersion: firmwareVersionStr,
     econetStation: parseInt(econetStationStr, 10),
     statusRegister1: parseInt(statusRegister1Str, 16),
     rxMode: rxState,

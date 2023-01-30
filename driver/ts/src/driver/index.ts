@@ -1,3 +1,4 @@
+import config from '../config';
 import { RxMode, StatusEvent } from '../types/statusEvent';
 import { parseStatusEvent } from '../parser/status';
 import { parseMonitorEvent } from '../parser/monitor';
@@ -11,6 +12,7 @@ import { parseImmediateEvent } from '../parser/immediate';
 import { parseTransmitEvent } from '../parser/transmit';
 import { parseBroadcastEvent } from '../parser/broadcast';
 import { drainAndClose, openPort, writeToPort } from './serial';
+import { areVersionsCompatible, parseSemver } from './semver';
 
 export enum ConnectionState {
   Disconnected = 'Disconnected',
@@ -38,7 +40,15 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
   try {
     await openPort(handleData, requestedDevice);
     const status = await readStatus();
-    fireListeners(status);
+
+    const firmwareVersionStr = status.firmwareVersion;
+    const firmwareVersion = parseSemver(firmwareVersionStr);
+    const driverVersionStr = config.version;
+    const driverVersion = parseSemver(config.version);
+    if (!areVersionsCompatible(firmwareVersion, driverVersion)) {
+      throw new Error(`Driver version ${driverVersionStr} is not compatible with board version ${firmwareVersionStr}.`);
+    }
+  
     state = ConnectionState.Connected;
   } catch (e) {
     state = ConnectionState.Error;
@@ -48,7 +58,7 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
 
 export const setMode = async (mode: RxMode): Promise<void> => {
   if (state !== ConnectionState.Connected) {
-    throw new Error(`Cannot set mode on device '${device}' whilst in ${state} state`);
+    throw new Error(`Cannot set mode on device whilst in ${state} state`);
   }
 
   switch (mode) {
@@ -79,6 +89,7 @@ export const setEconetStation = async (station: number): Promise<void> => {
 
   await writeToPort(`SET_STATION ${station}\r`);
   await readStatus();
+  // TODO: should we check that status has correct station number?
 };
 
 export const close = async (): Promise<void> => {
@@ -108,16 +119,12 @@ const handleData = (data: string) => {
     return;
   }
 
-  try {
-    parsers.forEach(parser => {
-      const event = parser(data);
-      if (event) {
-        fireListeners(event);
-      }
-    });
-  } catch (error) {
-    console.error('Protocol error', error);
-  }
+  parsers.forEach(parser => {
+    const event = parser(data);
+    if (event) {
+      fireListeners(event);
+    }
+  });
 };
 
 const readStatus = async (): Promise<StatusEvent> => {

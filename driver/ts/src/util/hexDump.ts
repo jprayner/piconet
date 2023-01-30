@@ -1,14 +1,6 @@
 // credit https://gist.github.com/Vbitz/ea301a2797e73616af8048d80f9d1aef
 
-function printValue(value: number): string {
-  if (value >= 0x20 && value <= 0x7e) {
-    return String.fromCharCode(value);
-  } else {
-    return '.';
-  }
-}
-
-export function hexDump(buff: Buffer): string {
+export const hexDump = (buff: Buffer): string => {
   let x = 0;
 
   let lineHex = '';
@@ -43,20 +35,12 @@ export function hexDump(buff: Buffer): string {
     .padEnd(3 * 16 + 2, ' ')} | ${lineAscii}\n`;
 
   return ret;
-}
+};
 
-/*
-  const hex = buffer.toString('hex');
-  const lines = [];
-  for (let i = 0; i < hex.length; i += 32) {
-    const line = hex.slice(i, i + 32);
-    const ascii = line
-      .match(/.{1,2}/g)
-      ?.map((byte) => String.fromCharCode(parseInt(byte, 16)))
-      .join('');
-    lines.push(`${line}  ${ascii || ''}`);
+const printValue = (value: number): string => {
+  if (value >= 0x20 && value <= 0x7e) {
+    return String.fromCharCode(value);
+  } else {
+    return '.';
   }
-  return lines.join('\n');
-
-
-*/
+};

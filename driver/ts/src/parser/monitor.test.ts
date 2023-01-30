@@ -1,5 +1,4 @@
 import { parseMonitorEvent } from './monitor';
-import { hexDump } from '../util/hexDump';
 
 describe('monitor message parser', () => {
   it('should parse valid MONITOR event', () => {

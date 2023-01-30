@@ -7,7 +7,6 @@ describe('status message parser', () => {
     const eventStr = 'STATUS 0.1.1 32 10 1';
     const result = parseStatusEvent(eventStr);
     expect(result).toBeDefined();
-    expect(result?.driverVersion).toBe(config.version);
     expect(result?.firmwareVersion).toBe('0.1.1');
     expect(result?.econetStation).toBe(32);
     expect(result?.statusRegister1).toBe(16);
@@ -29,14 +28,9 @@ describe('status message parser', () => {
     expect(() => parseStatusEvent(eventStr)).toThrow(`Protocol error. Invalid STATUS event '${eventStr}' received`);
   });
 
-  it('should fail to parse due to invalid semver in board version', () => {
+  it('should fail to parse due to invalid semver in firmware version', () => {
     const eventStr = 'STATUS x.1.1 32 10 1';
     expect(() => parseStatusEvent(eventStr)).toThrow(`Protocol error. Invalid STATUS event '${eventStr}' received`);
-  });
-
-  it('should fail to parse due to incompatible board version', () => {
-    const eventStr = 'STATUS 99.9.9 32 10 1';
-    expect(() => parseStatusEvent(eventStr)).toThrow(`Driver version ${config.version} is not compatible with board version 99.9.9.`);
   });
 
   it('should fail to parse due to wrong number of attibutes', () => {

@@ -1,24 +1,13 @@
 import { ErrorEvent } from '../types/errorEvent';
 
 export const parseErrorEvent = (event: string): ErrorEvent | undefined => {
-  const terms = event.split(' ');
-
-  if (terms.length == 0 || terms[0] !== 'ERROR') {
+  if (event.indexOf('ERROR ') !== 0) {
     return undefined;
   }
 
-  if (terms.length < 2) {
-    throw new Error(`Protocol error. Invalid ERROR event '${event}' received.`);
-  }
-  const attributes = terms.slice(1);
-
-  const errorDesc = attributes[0];
-  try {
-    return {
-      type: 'error',
-      description: errorDesc
-    };
-  } catch (e) {
-    throw new Error(`Protocol error. Invalid ERROR event '${event}' received. Failed to parse base64 data.`);
-  }
+  const description = event.substring('ERROR '.length);
+  return {
+    type: 'error',
+    description,
+  };
 };
