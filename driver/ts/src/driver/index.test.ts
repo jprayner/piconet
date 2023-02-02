@@ -2,7 +2,6 @@ import { connect, close, setMode, addListener, setEconetStation, removeListener 
 import { RxMode } from '../types/statusEvent';
 import { openPort, writeToPort } from './serial';
 import config from '../config';
-jest.setTimeout(30000);
 
 jest.mock('./serial');
 
@@ -14,15 +13,15 @@ describe('driver', () => {
     jest.clearAllMocks();
   });
 
-  // it('should connect successfully', async () => {
-  //   setTimeout(() => {
-  //     const dataHandlerFunc = openPortMock.mock.calls[0][0];
-  //     dataHandlerFunc(`STATUS ${config.version} 2 00 0\r`);
-  //   }, 100);
+  it('should connect successfully', async () => {
+    setTimeout(() => {
+      const dataHandlerFunc = openPortMock.mock.calls[0][0];
+      dataHandlerFunc(`STATUS ${config.version} 2 00 0\r`);
+    }, 100);
 
-  //   await connect();
-  //   await close();
-  // });
+    await connect();
+    await close();
+  });
 
   it('should fire events to handler registered with addListener', async () => {
     let event;
@@ -83,7 +82,7 @@ describe('driver', () => {
     await connect();
 
     mockStatusEventFromBoard(0);
-    await setMode(RxMode.Stopped);
+    await setMode('STOP');
     expect(writeToPortMock).toHaveBeenCalledWith('SET_MODE STOP\r');
     await close();
   });
@@ -93,7 +92,7 @@ describe('driver', () => {
     await connect();
 
     mockStatusEventFromBoard(1);
-    await setMode(RxMode.Listening);
+    await setMode('LISTEN');
     expect(writeToPortMock).toHaveBeenCalledWith('SET_MODE LISTEN\r');
     await close();
   });
@@ -103,7 +102,7 @@ describe('driver', () => {
     await connect();
 
     mockStatusEventFromBoard(2);
-    await setMode(RxMode.Monitoring);
+    await setMode('MONITOR');
     expect(writeToPortMock).toHaveBeenCalledWith('SET_MODE MONITOR\r');
     await close();
   });
@@ -114,7 +113,7 @@ describe('driver', () => {
     await close();
     expect(writeToPortMock).toHaveBeenCalledTimes(1);
 
-    await expect(setMode(RxMode.Monitoring)).rejects.toThrow('Cannot set mode on device whilst in Disconnected state');
+    await expect(setMode('MONITOR')).rejects.toThrow('Cannot set mode on device whilst in Disconnected state');
     expect(writeToPortMock).toHaveBeenCalledTimes(1);
   });
 

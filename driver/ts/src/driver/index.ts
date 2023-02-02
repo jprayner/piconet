@@ -56,19 +56,19 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
   }
 };
 
-export const setMode = async (mode: RxMode): Promise<void> => {
+export const setMode = async (mode: 'STOP' | 'MONITOR' | 'LISTEN'): Promise<void> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(`Cannot set mode on device whilst in ${state} state`);
   }
 
   switch (mode) {
-    case RxMode.Stopped:
+    case 'STOP':
       await writeToPort('SET_MODE STOP\r');
       break;
-    case RxMode.Monitoring:
+    case 'MONITOR':
       await writeToPort('SET_MODE MONITOR\r');
       break;
-    case RxMode.Listening:
+    case 'LISTEN':
       await writeToPort('SET_MODE LISTEN\r');
       break;
     default:
