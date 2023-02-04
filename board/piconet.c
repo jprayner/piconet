@@ -13,9 +13,7 @@
 #include "util.h"
 #include "./lib/b64/cencode.h"
 
-//define DEBUG
-
-#define TX_DATA_BUFFER_SZ       1024
+#define TX_DATA_BUFFER_SZ       3500
 #define RX_DATA_BUFFER_SZ       3500
 #define RX_SCOUT_BUFFER_SZ      32
 #define ACK_BUFFER_SZ           32
@@ -59,6 +57,10 @@ typedef struct {
 } econet_rx_event_t;
 
 typedef struct {
+    econet_tx_result_t      type;
+} econet_tx_event_t;
+
+typedef struct {
     char                    version[VERSION_STR_MAXLEN];
     uint8_t                 station;
     uint8_t                 status_register_1;
@@ -70,7 +72,7 @@ typedef struct
     tPiconetEventType type;
     union {
         econet_rx_event_t   rx_event_detail;    // if type == PICONET_RX_EVENT
-        econet_rx_result_t  tx_event_detail;    // if type == PICONET_TX_EVENT
+        econet_tx_event_t   tx_event_detail;    // if type == PICONET_TX_EVENT
         event_status_t      status;             // if type == PICONET_STATUS_EVENT
     };
 } event_t;
@@ -86,6 +88,8 @@ typedef enum {
 typedef struct {
     uint8_t                 dest_station;
     uint8_t                 dest_network;
+    uint8_t                 control_byte;
+    uint8_t                 port;
     uint8_t                 data[TX_DATA_BUFFER_SZ];
     size_t                  data_len;
 } cmd_tx_t;
@@ -139,7 +143,8 @@ int main() {
 void _core1_loop(void) {
     command_t       received_command;
     event_t         event;
-    uint8_t         ack_buffer[ACK_BUFFER_SZ];
+    uint8_t         tx_buffer[TX_BUFFER_SZ];
+    uint8_t         ack_buffer[TX_BUFFER_SZ];
     piconet_mode_t  mode = PICONET_CMD_SET_MODE_STOP;
 
     if (!econet_init(
@@ -155,12 +160,6 @@ void _core1_loop(void) {
 
     while (true) {
         if (queue_try_remove(&command_queue, &received_command)) {
-    //              = 0L,
-    // PICONET_CMD_RESTART,
-    // PICONET_CMD_SET_MODE,
-    // PICONET_CMD_SET_STATION,
-    // PICONET_CMD_TX
-
             switch (received_command.type) {
                 case PICONET_CMD_STATUS:
                     event.type = PICONET_STATUS_EVENT;
@@ -180,11 +179,15 @@ void _core1_loop(void) {
                     set_station(received_command.station);
                     break;
                 case PICONET_CMD_TX:
-                    // econet_tx(
-                    //     received_command.tx.dest_station,
-                    //     received_command.tx.dest_network,
-                    //     received_command.tx.data,
-                    //     received_command.tx.data_len);
+                    econet_tx_result_t result = econet_tx(
+                        received_command.tx.dest_station,
+                        received_command.tx.dest_network,
+                        received_command.tx.control_byte,
+                        received_command.tx.port,
+                        received_command.tx.data,
+                        received_command.tx.data_len);
+                    event.type = PICONET_TX_EVENT;
+                    event.tx_event_detail.type = result;
                     break;
             }
         }
@@ -214,6 +217,7 @@ void _core1_loop(void) {
 }
 
 char* encode(char* output_buffer, const char* input, size_t len) {
+    // TODO: check for buffer overflow
     char* c = output_buffer;
 	int cnt = 0;
 	base64_encodestate s;
@@ -226,6 +230,20 @@ char* encode(char* output_buffer, const char* input, size_t len) {
 	*c = 0;
 	
 	return output_buffer;
+}
+
+char* decode(const char* input, char* output_buffer) {
+    // TODO: check for buffer overflow
+    char* c = output_buffer;
+    int cnt = 0;
+    base64_decodestate s;
+    
+    base64_init_decodestate(&s);
+    cnt = base64_decode_block(input, strlen(input), c, &s);
+    c += cnt;
+    *c = 0;
+    
+    return output_buffer;
 }
 
 void _read_command_input(void) {
@@ -255,6 +273,7 @@ void _read_command_input(void) {
             cmd.type = PICONET_CMD_RESTART;
         } else if (strcmp(ptr, CMD_SET_MODE) == 0) {
             cmd.type = PICONET_CMD_SET_MODE;
+            // TODO: strtok prolly not thread safe
             const char *mode = strtok(NULL, delim);
             if (mode == NULL) {
                 error = true;
@@ -282,7 +301,11 @@ void _read_command_input(void) {
             }
         } else if (strcmp(ptr, CMD_TX) == 0) {
             cmd.type = PICONET_CMD_TX;
-            // TODO decode packet etc
+            cmd.tx.dest_station = strtol(strtok(NULL, delim), NULL, 10);
+            cmd.tx.dest_network = strtol(strtok(NULL, delim), NULL, 10);
+            cmd.tx.control = strtol(strtok(NULL, delim), NULL, 10);
+            cmd.tx.port = strtol(strtok(NULL, delim), NULL, 10);
+            decode(strtok(NULL, delim), cmd.tx.data);
         } else {
             error = true;
         }
@@ -319,22 +342,10 @@ void _core0_loop(void) {
                 break;
             }
             case PICONET_TX_EVENT: {
-                switch (event.tx_event_detail.type) {
-                    case PICONET_TX_RESULT_OK:
-                        printf("TRANS: OK");
-                        break;
-                    case PICONET_TX_RESULT_ERROR_MISC:
-                        printf("TRANS: ERROR_MISC");
-                        break;
-                    case PICONET_TX_RESULT_ERROR_NO_ACK:
-                        printf("TRANS: ERROR_NO_ACK");
-                        break;
-                    case PICONET_TX_RESULT_ERROR_TIMEOUT:
-                        printf("TRANS: ERROR_TIMEOUT");
-                        break;
-                    default:
-                        printf("TRANS: WTF");
-                        break;
+                if (event.tx_event_detail.type == PICONET_TX_RESULT_OK) {
+                    printf("TX OK\n");
+                else {
+                    printf("ERROR %s\n", event.tx_event_detail.type);
                 }
                 break;
             }
@@ -392,6 +403,31 @@ char* _rx_error_to_str(econet_rx_error_t error) {
             return "ECONET_RX_ERROR_SCOUT_ACK";
         case ECONET_RX_ERROR_DATA_ACK:
             return "ECONET_RX_ERROR_DATA_ACK";
+        default:
+            return "UNEXPECTED";
+    }
+}
+
+char* _tx_error_to_str(econet_tx_result_t error) {
+    switch (error) {
+        case PICONET_TX_RESULT_OK:
+            return "PICONET_TX_RESULT_OK";
+        case PICONET_TX_RESULT_ERROR_UNINITIALISED:
+            return "PICONET_TX_RESULT_ERROR_UNINITIALISED";
+        case PICONET_TX_RESULT_ERROR_OVERFLOW:
+            return "PICONET_TX_RESULT_ERROR_OVERFLOW";
+        case PICONET_TX_RESULT_ERROR_UNDERRUN:
+            return "PICONET_TX_RESULT_ERROR_UNDERRUN";
+        case PICONET_TX_RESULT_ERROR_LINE_JAMMED:
+            return "PICONET_TX_RESULT_ERROR_LINE_JAMMED";
+        case PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK:
+            return "PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK";
+        case PICONET_TX_RESULT_ERROR_NO_DATA_ACK:
+            return "PICONET_TX_RESULT_ERROR_NO_DATA_ACK";
+        case PICONET_TX_RESULT_ERROR_TIMEOUT:
+            return "PICONET_TX_RESULT_ERROR_TIMEOUT";
+        case PICONET_TX_RESULT_ERROR_MISC:
+            return "PICONET_TX_RESULT_ERROR_MISC";
         default:
             return "UNEXPECTED";
     }

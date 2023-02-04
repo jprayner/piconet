@@ -6,12 +6,16 @@
 #include "adlc.h"
 #include "util.h"
 
-static bool initialised;
+static bool _initialised;
 
+static uint8_t* _tx_data_buffer;
+static size_t   _tx_data_buffer_sz;
 static uint8_t* _rx_scout_buffer;
 static size_t   _rx_scout_buffer_sz;
 static uint8_t* _rx_data_buffer;
 static size_t   _rx_data_buffer_sz;
+static uint8_t* _tx_data_buffer;
+static size_t   _tx_data_buffer_sz;
 static uint8_t* _ack_buffer;
 static size_t   _ack_buffer_sz;
 
@@ -77,26 +81,32 @@ static econet_rx_result_t       _handle_transmit_scout(t_frame_parse_result* tra
 static econet_rx_result_t       _handle_broadcast(t_frame_parse_result* broadcast_frame);
 static tFrameWriteStatus        _tx_frame(uint8_t* buffer, size_t len);
 static tFrameWriteStatus        _send_ack(t_frame_parse_result* incoming_frame);
+static bool                     _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_station, uint8_t to_network);
 static econet_rx_result_t       _rx_result_for_error(econet_rx_error_t error);
+static econet_tx_result_t       _tx_result_for_frame_status(tFrameWriteStatus status);
 static econet_rx_result_t       _map_read_frame_result(t_frame_read_status status);
 static void                     _abort_read(void);
 static void                     _clear_rx(void);
 static void                     _finish_tx(void);
 
 bool econet_init(
+        uint8_t*    tx_data_buffer,
+        size_t      tx_data_buffer_sz,
         uint8_t*    rx_scout_buffer,
         size_t      rx_scout_buffer_sz,
         uint8_t*    rx_data_buffer,
         size_t      rx_data_buffer_sz,
         uint8_t*    ack_buffer,
         size_t      ack_buffer_sz) {
-    if (initialised) {
+    if (_initialised) {
         return false;
     }
 
     adlc_init();
     adlc_irq_reset();
 
+    _tx_data_buffer = tx_data_buffer;
+    _tx_data_buffer_sz = tx_data_buffer_sz;
     _rx_scout_buffer = rx_scout_buffer;
     _rx_scout_buffer_sz = rx_scout_buffer_sz;
     _rx_data_buffer = rx_data_buffer;
@@ -104,13 +114,56 @@ bool econet_init(
     _ack_buffer = ack_buffer;
     _ack_buffer_sz = ack_buffer_sz;
 
-    initialised = true;
+    _initialised = true;
 
     return true;
 }
 
+econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint* data, size_t data_len) {
+    if (!_initialised) {
+        return PICONET_TX_RESULT_ERROR_UNINITIALISED;
+    }
+
+    size_t data_frame_len = data_len + 2;
+    if (data_frame_len > _tx_buffer_sz) {
+        return PICONET_TX_RESULT_ERROR_OVERFLOW;
+    }
+    _tx_buffer[0] = station;
+    _tx_buffer[1] = network;
+    memcpy(_tx_buffer + 2, data, data_len);
+
+    uint8_t scout_frame[8];
+    scout_frame[0] = station;
+    scout_frame[1] = 0x00;
+    scout_frame[2] = listen_addresses[0];
+    scout_frame[3] = 0x00;
+    scout_frame[4] = control;
+    scout_frame[5] = port;
+
+    // TODO: ADLC stuff?
+    econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(ack_frame, sizeof(scout_frame)));
+    if (scout_result != PICONET_TX_RESULT_OK) {
+        return scout_result;
+    }
+
+    if (!_wait_ack(station, network, listen_addresses[0], 0x00)) {
+        return PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK;
+    }
+
+    econet_tx_result_t data_result = _tx_result_for_frame_status(_tx_frame(_tx_buffer, data_frame_len));
+    if (data_result != PICONET_TX_RESULT_OK) {
+        return data_result;
+    }
+
+    if (!_wait_ack(station, network, listen_addresses[0], 0x00)) {
+        return PICONET_TX_RESULT_ERROR_NO_DATA_ACK;
+    }
+
+    return PICONET_TX_RESULT_OK;
+}
+
 econet_rx_result_t receive() {
-    if (!initialised) {
+    if (!_initialised) {
         return _rx_result_for_error(ECONET_RX_ERROR_UNINITIALISED);
     }
 
@@ -137,7 +190,7 @@ econet_rx_result_t receive() {
 }
 
 econet_rx_result_t monitor() {
-    if (!initialised) {
+    if (!_initialised) {
         return _rx_result_for_error(ECONET_RX_ERROR_UNINITIALISED);
     }
 
@@ -343,6 +396,55 @@ static econet_rx_result_t _rx_result_for_error(econet_rx_error_t error) {
     return result;
 }
 
+static econet_tx_result_t _tx_result_for_frame_status(tFrameWriteStatus status) {
+    switch (status) {
+        case FRAME_WRITE_OK:
+            return PICONET_TX_RESULT_OK;
+        case FRAME_WRITE_UNDERRUN:
+            return PICONET_TX_RESULT_ERROR_UNDERRUN;
+        case FRAME_WRITE_READY_TIMEOUT:
+            return PICONET_TX_RESULT_ERROR_LINE_JAMMED;
+        default:
+            return PICONET_TX_RESULT_ERROR_UNEXPECTED;
+    }
+}
+
+static bool _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_station, uint8_t to_network) {
+    t_frame_read_result ack_frame_result;
+    while (true) {
+        adlc_irq_reset();
+
+        if (!_wait_frame_start(200)) {
+            return false;
+        }
+
+        ack_frame_result = _read_frame(_ack_buffer, _ack_buffer_sz, listen_addresses, 1, 2000);
+        if (ack_frame_result.status == FRAME_READ_OK) {
+            break;
+        }
+
+        _abort_read();
+    }
+
+    t_frame_parse_result ack_frame = _parse_frame(_ack_buffer, ack_frame_result.bytes_read, false);
+    if (ack_frame.type != FRAME_TYPE_DATA) {
+        printf("[_wait_ack] parse ack failed type=%u len=%u - aborting", ack_frame.type, ack_frame_result.bytes_read);
+        return false;
+    }
+
+    if (ack_frame.type != FRAME_TYPE_ACK
+            || ack_frame.frame.src_station != from_station || ack_frame.frame.src_net != from_network
+            || ack_frame.frame.dest_station != to_station || ack_frame.frame.dest_net != to_network) {
+        printf("[_wait_ack] unexpected frame type %d from station %u to station %u",
+            ack_frame.type,
+            ack_frame.frame.src_station,
+            ack_frame.frame.dest_station);
+        return false;
+    }
+
+    return true;
+}
+
 static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) {
     frame_type_t frame_type = scout_frame->type;
     tFrameWriteStatus scout_ack_result = _send_ack(scout_frame);
@@ -430,6 +532,10 @@ static econet_rx_result_t _handle_first_frame() {
             _abort_read();
             break;
     }
+}
+
+econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint* data, size_t data_len) {
+
 }
 
 static t_frame_read_result _read_frame(uint8_t* buffer, size_t buffer_len, uint8_t* addr, size_t addr_len, uint timeout_ms) {

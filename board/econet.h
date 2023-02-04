@@ -5,9 +5,14 @@
 
 typedef enum {
     PICONET_TX_RESULT_OK = 0L,
-    PICONET_TX_RESULT_ERROR_MISC,
-    PICONET_TX_RESULT_ERROR_NO_ACK,
-    PICONET_TX_RESULT_ERROR_TIMEOUT
+    PICONET_TX_RESULT_ERROR_UNINITIALISED,
+    PICONET_TX_RESULT_ERROR_OVERFLOW,
+    PICONET_TX_RESULT_ERROR_UNDERRUN,
+    PICONET_TX_RESULT_ERROR_LINE_JAMMED,
+    PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK,
+    PICONET_TX_RESULT_ERROR_NO_DATA_ACK,
+    PICONET_TX_RESULT_ERROR_TIMEOUT,
+    PICONET_TX_RESULT_ERROR_MISC
 } econet_tx_result_t;
 
 typedef enum {
@@ -49,6 +54,8 @@ typedef struct
 } econet_rx_result_t;
 
 bool                    econet_init(
+                            uint8_t*    tx_data_buffer,
+                            size_t      tx_data_buffer_sz,
                             uint8_t*    rx_scout_buffer,
                             size_t      rx_scout_buffer_sz,
                             uint8_t*    rx_data_buffer,
