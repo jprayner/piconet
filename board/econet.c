@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "econet.h"
 
@@ -119,18 +120,18 @@ bool econet_init(
     return true;
 }
 
-econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint* data, size_t data_len) {
+econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint8_t* data, size_t data_len) {
     if (!_initialised) {
         return PICONET_TX_RESULT_ERROR_UNINITIALISED;
     }
 
     size_t data_frame_len = data_len + 2;
-    if (data_frame_len > _tx_buffer_sz) {
+    if (data_frame_len > _tx_data_buffer_sz) {
         return PICONET_TX_RESULT_ERROR_OVERFLOW;
     }
-    _tx_buffer[0] = station;
-    _tx_buffer[1] = network;
-    memcpy(_tx_buffer + 2, data, data_len);
+    _tx_data_buffer[0] = station;
+    _tx_data_buffer[1] = network;
+    memcpy(_tx_data_buffer + 2, data, data_len);
 
     uint8_t scout_frame[8];
     scout_frame[0] = station;
@@ -141,7 +142,7 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
     scout_frame[5] = port;
 
     // TODO: ADLC stuff?
-    econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(ack_frame, sizeof(scout_frame)));
+    econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(scout_frame, sizeof(scout_frame)));
     if (scout_result != PICONET_TX_RESULT_OK) {
         return scout_result;
     }
@@ -150,7 +151,7 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
         return PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK;
     }
 
-    econet_tx_result_t data_result = _tx_result_for_frame_status(_tx_frame(_tx_buffer, data_frame_len));
+    econet_tx_result_t data_result = _tx_result_for_frame_status(_tx_frame(_tx_data_buffer, data_frame_len));
     if (data_result != PICONET_TX_RESULT_OK) {
         return data_result;
     }
@@ -405,7 +406,7 @@ static econet_tx_result_t _tx_result_for_frame_status(tFrameWriteStatus status) 
         case FRAME_WRITE_READY_TIMEOUT:
             return PICONET_TX_RESULT_ERROR_LINE_JAMMED;
         default:
-            return PICONET_TX_RESULT_ERROR_UNEXPECTED;
+            return PICONET_TX_RESULT_ERROR_MISC;
     }
 }
 
@@ -532,10 +533,6 @@ static econet_rx_result_t _handle_first_frame() {
             _abort_read();
             break;
     }
-}
-
-econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint* data, size_t data_len) {
-
 }
 
 static t_frame_read_result _read_frame(uint8_t* buffer, size_t buffer_len, uint8_t* addr, size_t addr_len, uint timeout_ms) {

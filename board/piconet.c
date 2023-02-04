@@ -12,6 +12,7 @@
 #include "adlc.h"
 #include "util.h"
 #include "./lib/b64/cencode.h"
+#include "./lib/b64/cdecode.h"
 
 #define TX_DATA_BUFFER_SZ       3500
 #define RX_DATA_BUFFER_SZ       3500
@@ -143,11 +144,13 @@ int main() {
 void _core1_loop(void) {
     command_t       received_command;
     event_t         event;
-    uint8_t         tx_buffer[TX_BUFFER_SZ];
-    uint8_t         ack_buffer[TX_BUFFER_SZ];
+    uint8_t         tx_buffer[TX_DATA_BUFFER_SZ];
+    uint8_t         ack_buffer[ACK_BUFFER_SZ];
     piconet_mode_t  mode = PICONET_CMD_SET_MODE_STOP;
 
     if (!econet_init(
+            tx_buffer,
+            TX_DATA_BUFFER_SZ,
             event.rx_event_detail.scout,
             RX_SCOUT_BUFFER_SZ,
             event.rx_event_detail.data,
@@ -178,8 +181,8 @@ void _core1_loop(void) {
                 case PICONET_CMD_SET_STATION:
                     set_station(received_command.station);
                     break;
-                case PICONET_CMD_TX:
-                    econet_tx_result_t result = econet_tx(
+                case PICONET_CMD_TX: {
+                    econet_tx_result_t result = transmit(
                         received_command.tx.dest_station,
                         received_command.tx.dest_network,
                         received_command.tx.control_byte,
@@ -189,6 +192,7 @@ void _core1_loop(void) {
                     event.type = PICONET_TX_EVENT;
                     event.tx_event_detail.type = result;
                     break;
+                }
             }
         }
 
@@ -303,7 +307,7 @@ void _read_command_input(void) {
             cmd.type = PICONET_CMD_TX;
             cmd.tx.dest_station = strtol(strtok(NULL, delim), NULL, 10);
             cmd.tx.dest_network = strtol(strtok(NULL, delim), NULL, 10);
-            cmd.tx.control = strtol(strtok(NULL, delim), NULL, 10);
+            cmd.tx.control_byte = strtol(strtok(NULL, delim), NULL, 10);
             cmd.tx.port = strtol(strtok(NULL, delim), NULL, 10);
             decode(strtok(NULL, delim), cmd.tx.data);
         } else {
@@ -344,7 +348,7 @@ void _core0_loop(void) {
             case PICONET_TX_EVENT: {
                 if (event.tx_event_detail.type == PICONET_TX_RESULT_OK) {
                     printf("TX OK\n");
-                else {
+                } else {
                     printf("ERROR %s\n", event.tx_event_detail.type);
                 }
                 break;
