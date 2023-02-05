@@ -15,7 +15,7 @@ export const parseMonitorEvent = (event: string): MonitorEvent | undefined => {
   const data = attributes[0];
   try {
     return {
-      type: 'monitor',
+      type: 'MonitorEvent',
       econetFrame: Buffer.from(data, 'base64'),
     };
   } catch (e) {

@@ -1,4 +1,3 @@
-import { TransmitEvent } from '../types/transmitEvent';
 import { hexDump } from './hexDump';
 
 describe('hexDump', () => {

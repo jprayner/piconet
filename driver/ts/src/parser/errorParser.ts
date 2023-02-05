@@ -7,7 +7,7 @@ export const parseErrorEvent = (event: string): ErrorEvent | undefined => {
 
   const description = event.substring('ERROR '.length);
   return {
-    type: 'error',
+    type: 'ErrorEvent',
     description,
   };
 };

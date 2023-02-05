@@ -4,25 +4,46 @@ import { hexdump } from '@gct256/hexdump';
 async function main() {
   await driver.connect();
   await driver.setEconetStation(2);
-  await driver.setMode('MONITOR');
+
+  // await driver.setMode('MONITOR');
   driver.addListener((event) => {
-    if (event.type === 'error') {
+    if (event.type === 'ErrorEvent') {
       console.log('========================');
       console.log(`ERROR: ${event.description}`);
+      console.log('========================\n');
+    } else if (event.type === 'TxResultEvent') {
+      console.log('========================');
+      console.log(`TX RESULT: ${event.result}`);
       console.log('========================\n');
     } else {
       logFrame(event);
     }
   });
 
-  await sleep(30000);
+  await driver.setEconetStation(2);
+  await driver.setMode('LISTEN');
+
+  await sendNotify('A');
+  await sleep(5);
+  await sendNotify('B');
+  await sleep(5);
+  await sendNotify('C');
+  
+  //await driver.transmit(168, 0, 0x85, 0x00, Buffer.from([0x41]), Buffer.from([0x00, 0x00, 0x41, 0x00]));
+  //while (true) {
+  await sleep(1000);
+  //}
 
   await driver.close();
 }
 
+const sendNotify = async (char) => {
+  await driver.transmit(168, 0, 0x85, 0x00, Buffer.from(char), Buffer.from([0x00, 0x00, char.charCodeAt(0), 0x00]));
+}
+
 const logFrame = (event) => {
-  const hasScoutAndDataFrames = event.type === 'immediate' || event.type === 'transmit';
-  const hasEconetFrame = event.type === 'monitor' || event.type === 'broadcast';
+  const hasScoutAndDataFrames = event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
+  const hasEconetFrame = event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
   const hasAnyFrame = hasScoutAndDataFrames || hasEconetFrame;
   if (hasAnyFrame) {
     const frameForHeader = hasScoutAndDataFrames ? event.scoutFrame : event.econetFrame;

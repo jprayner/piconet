@@ -1,4 +1,4 @@
-import { parseMonitorEvent } from './monitor';
+import { parseMonitorEvent } from './monitorParser';
 
 describe('monitor message parser', () => {
   it('should parse valid MONITOR event', () => {

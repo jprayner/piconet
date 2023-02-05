@@ -1,5 +1,4 @@
 import { connect, close, setMode, addListener, setEconetStation, removeListener } from '.';
-import { RxMode } from '../types/statusEvent';
 import { openPort, writeToPort } from './serial';
 import config from '../config';
 

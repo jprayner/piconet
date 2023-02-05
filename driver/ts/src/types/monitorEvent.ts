@@ -5,6 +5,6 @@ export enum RxState {
 }
 
 export type MonitorEvent = {
-  type: 'monitor';
+  type: 'MonitorEvent';
   econetFrame: Buffer;
 };

@@ -16,6 +16,7 @@
 
 #define TX_DATA_BUFFER_SZ       3500
 #define RX_DATA_BUFFER_SZ       3500
+#define TX_SCOUT_BUFFER_SZ      32
 #define RX_SCOUT_BUFFER_SZ      32
 #define ACK_BUFFER_SZ           32
 #define B64_BUFFER_SZ           RX_DATA_BUFFER_SZ * 2
@@ -93,6 +94,8 @@ typedef struct {
     uint8_t                 port;
     uint8_t                 data[TX_DATA_BUFFER_SZ];
     size_t                  data_len;
+    uint8_t                 scout_extra_data[TX_DATA_BUFFER_SZ];
+    size_t                  scout_extra_data_len;
 } cmd_tx_t;
 
 typedef struct {
@@ -113,7 +116,11 @@ char* b64_data_buffer;
 
 void    _core0_loop(void);
 void    _core1_loop(void);
+char*   _tx_error_to_str(econet_tx_result_t error);
 char*   _rx_error_to_str(econet_rx_error_t error);
+void    _read_command_input(void);
+char*   _encode_base64(char* output_buffer, const char* input, size_t len);
+size_t  _decode_base64(const char* input, char* output_buffer);
 
 int main() {
     stdio_init_all();
@@ -124,13 +131,13 @@ int main() {
     // TODO: scout buffer could be smaller
     b64_scout_buffer = malloc(B64_BUFFER_SZ);
     if (b64_scout_buffer == NULL) {
-        printf("Failed to allocate memory for base64 scout buffer");
+        printf("ERROR Failed to allocate memory for base64 scout buffer");
         return 1;
     }
 
     b64_data_buffer = malloc(B64_BUFFER_SZ);
     if (b64_data_buffer == NULL) {
-        printf("Failed to allocate memory for base64 data buffer");
+        printf("ERROR Failed to allocate memory for base64 data buffer");
         return 1;
     }
 
@@ -141,14 +148,77 @@ int main() {
     _core0_loop();
 }
 
+void _core0_loop(void) {
+    event_t event;
+    while (true) {
+        _read_command_input();
+
+        if (!queue_try_remove(&event_queue, &event)) {
+            continue;
+        }
+        switch (event.type) {
+            case PICONET_STATUS_EVENT: {
+                printf(
+                    "STATUS %s %d %02x %d\n",
+                    event.status.version,
+                    event.status.station,
+                    event.status.status_register_1,
+                    event.status.mode);
+                break;
+            }
+            case PICONET_TX_EVENT: {
+                if (event.tx_event_detail.type == PICONET_TX_RESULT_OK) {
+                    printf("TX_RESULT OK\n");
+                } else {
+                    printf("ERROR %s\n", event.tx_event_detail.type);
+                }
+                break;
+            }
+            case PICONET_RX_EVENT: {
+                switch (event.rx_event_detail.type) {
+                    case PICONET_RX_RESULT_ERROR :
+                        printf("ERROR %s\n", _rx_error_to_str(event.rx_event_detail.error));
+                        break;
+                    case PICONET_RX_RESULT_MONITOR :
+                        printf("MONITOR %s\n", _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        break;
+                    case PICONET_RX_RESULT_BROADCAST :
+                        printf("RX_BROADCAST %s\n", _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        break;
+                    case PICONET_RX_RESULT_IMMEDIATE_OP :
+                        printf(
+                            "RX_IMMEDIATE %s %s\n",
+                            _encode_base64(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
+                            _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        break;
+                    case PICONET_RX_RESULT_TRANSMIT :
+                        printf(
+                            "RX_TRANSMIT %s %s\n",
+                            _encode_base64(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
+                            _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        break;
+                }
+                break;
+            }
+            default: {
+                printf("ERROR Unexpected event type %u\n", event.type);
+                break;
+            }
+        }
+    }
+}
+
 void _core1_loop(void) {
     command_t       received_command;
     event_t         event;
+    uint8_t         scout_buffer[TX_SCOUT_BUFFER_SZ];
     uint8_t         tx_buffer[TX_DATA_BUFFER_SZ];
     uint8_t         ack_buffer[ACK_BUFFER_SZ];
     piconet_mode_t  mode = PICONET_CMD_SET_MODE_STOP;
 
     if (!econet_init(
+            scout_buffer,
+            TX_SCOUT_BUFFER_SZ,
             tx_buffer,
             TX_DATA_BUFFER_SZ,
             event.rx_event_detail.scout,
@@ -157,7 +227,7 @@ void _core1_loop(void) {
             RX_DATA_BUFFER_SZ,
             ack_buffer,
             ACK_BUFFER_SZ)) {
-        printf("Failed to init econet module. Game over, man.\n");
+        printf("ERROR Failed to init econet module. Game over, man.\n");
         return;
     }
 
@@ -188,9 +258,16 @@ void _core1_loop(void) {
                         received_command.tx.control_byte,
                         received_command.tx.port,
                         received_command.tx.data,
-                        received_command.tx.data_len);
-                    event.type = PICONET_TX_EVENT;
-                    event.tx_event_detail.type = result;
+                        received_command.tx.data_len,
+                        received_command.tx.scout_extra_data,
+                        received_command.tx.scout_extra_data_len);
+                    if (result != PICONET_TX_RESULT_OK) {
+                        printf("ERROR %s\n", _tx_error_to_str(result));
+                    } else {
+                        event.type = PICONET_TX_EVENT;
+                        event.tx_event_detail.type = result;
+                        queue_add_blocking(&event_queue, &event);
+                    }
                     break;
                 }
             }
@@ -220,34 +297,32 @@ void _core1_loop(void) {
     }
 }
 
-char* encode(char* output_buffer, const char* input, size_t len) {
+char* _encode_base64(char* output_buffer, const char* input, size_t len) {
     // TODO: check for buffer overflow
     char* c = output_buffer;
 	int cnt = 0;
 	base64_encodestate s;
-	
+
 	base64_init_encodestate(&s);
 	cnt = base64_encode_block(input, len, c, &s);
 	c += cnt;
 	cnt = base64_encode_blockend(c, &s);
 	c += cnt;
 	*c = 0;
-	
-	return output_buffer;
+
+    return output_buffer;
 }
 
-char* decode(const char* input, char* output_buffer) {
+size_t _decode_base64(const char* input, char* output_buffer) {
+    if (input == NULL) {
+        return 0;
+    }
+
     // TODO: check for buffer overflow
     char* c = output_buffer;
-    int cnt = 0;
-    base64_decodestate s;
-    
+    base64_decodestate s;    
     base64_init_decodestate(&s);
-    cnt = base64_decode_block(input, strlen(input), c, &s);
-    c += cnt;
-    *c = 0;
-    
-    return output_buffer;
+    return base64_decode_block(input, strlen(input), c, &s);
 }
 
 void _read_command_input(void) {
@@ -309,13 +384,14 @@ void _read_command_input(void) {
             cmd.tx.dest_network = strtol(strtok(NULL, delim), NULL, 10);
             cmd.tx.control_byte = strtol(strtok(NULL, delim), NULL, 10);
             cmd.tx.port = strtol(strtok(NULL, delim), NULL, 10);
-            decode(strtok(NULL, delim), cmd.tx.data);
+            cmd.tx.data_len = _decode_base64(strtok(NULL, delim), cmd.tx.data);
+            cmd.tx.scout_extra_data_len = _decode_base64(strtok(NULL, delim), cmd.tx.scout_extra_data);
         } else {
             error = true;
         }
 
         if (error) {
-            printf("WHAT??\n");
+            printf("ERROR WHAT??\n");
         } else {
             queue_add_blocking(&command_queue, &cmd);
         }
@@ -324,66 +400,6 @@ void _read_command_input(void) {
             return;
         }
         buffer[buffer_pos++] = c;
-    }
-}
-
-void _core0_loop(void) {
-    event_t event;
-    while (true) {
-        _read_command_input();
-
-        if (!queue_try_remove(&event_queue, &event)) {
-            continue;
-        }
-        switch (event.type) {
-            case PICONET_STATUS_EVENT: {
-                printf(
-                    "STATUS %s %d %02x %d\n",
-                    event.status.version,
-                    event.status.station,
-                    event.status.status_register_1,
-                    event.status.mode);
-                break;
-            }
-            case PICONET_TX_EVENT: {
-                if (event.tx_event_detail.type == PICONET_TX_RESULT_OK) {
-                    printf("TX OK\n");
-                } else {
-                    printf("ERROR %s\n", event.tx_event_detail.type);
-                }
-                break;
-            }
-            case PICONET_RX_EVENT: {
-                switch (event.rx_event_detail.type) {
-                    case PICONET_RX_RESULT_ERROR :
-                        printf("ERROR %s\n", _rx_error_to_str(event.rx_event_detail.error));
-                        break;
-                    case PICONET_RX_RESULT_BROADCAST :
-                        printf("BROADCAST %s\n", encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
-                        break;
-                    case PICONET_RX_RESULT_MONITOR :
-                        printf("MONITOR %s\n", encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
-                        break;
-                    case PICONET_RX_RESULT_IMMEDIATE_OP :
-                        printf(
-                            "IMMEDIATE %s %s\n",
-                            encode(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
-                            encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
-                        break;
-                    case PICONET_RX_RESULT_TRANSMIT :
-                        printf(
-                            "TRANSMIT %s %s\n",
-                            encode(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
-                            encode(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
-                        break;
-                }
-                break;
-            }
-            default: {
-                printf("WTF1 %u\n", event.type);
-                break;
-            }
-        }
     }
 }
 

@@ -1,4 +1,4 @@
 export type ErrorEvent = {
-  type: 'error';
+  type: 'ErrorEvent';
   description: string;
 };

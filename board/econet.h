@@ -54,6 +54,8 @@ typedef struct
 } econet_rx_result_t;
 
 bool                    econet_init(
+                            uint8_t*    tx_scout_buffer,
+                            size_t      tx_scout_buffer_sz,
                             uint8_t*    tx_data_buffer,
                             size_t      tx_data_buffer_sz,
                             uint8_t*    rx_scout_buffer,
@@ -63,7 +65,15 @@ bool                    econet_init(
                             uint8_t*    ack_buffer,
                             size_t      ack_buffer_sz);
 econet_tx_result_t      broadcast(uint8_t* buff, int bytes);
-econet_tx_result_t      transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint8_t* data, size_t data_len);
+econet_tx_result_t      transmit(
+                            uint8_t     station,
+                            uint8_t     network,
+                            uint8_t     control,
+                            uint8_t     port,
+                            uint8_t*    data,
+                            size_t      data_len,
+                            uint8_t*    scout_extra_data,
+                            size_t      scout_extra_data_len);
 econet_rx_result_t      receive();
 econet_rx_result_t      monitor();
 uint8_t                 get_station();

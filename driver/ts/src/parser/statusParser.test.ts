@@ -1,6 +1,6 @@
 import config from '../config';
 import { RxMode } from '../types/statusEvent';
-import { parseStatusEvent } from './status';
+import { parseStatusEvent } from './statusParser';
 
 describe('status message parser', () => {
   it('should parse valid string', () => {

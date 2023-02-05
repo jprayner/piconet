@@ -1,18 +1,20 @@
 import config from '../config';
-import { RxMode, StatusEvent } from '../types/statusEvent';
-import { parseStatusEvent } from '../parser/status';
-import { parseMonitorEvent } from '../parser/monitor';
+import { StatusEvent } from '../types/statusEvent';
+import { parseStatusEvent } from '../parser/statusParser';
+import { parseMonitorEvent } from '../parser/monitorParser';
 import { MonitorEvent } from '../types/monitorEvent';
-import { TransmitEvent } from '../types/transmitEvent';
-import { ImmediateEvent } from '../types/immediateEvent';
-import { BroadcastEvent } from '../types/broadcastEvent';
+import { TxResultEvent } from '../types/txResultEvent';
+import { RxImmediateEvent } from '../types/rxImmediateEvent';
+import { RxBroadcastEvent } from '../types/rxBroadcastEvent';
 import { ErrorEvent } from '../types/errorEvent';
-import { parseErrorEvent } from '../parser/error';
-import { parseImmediateEvent } from '../parser/immediate';
-import { parseTransmitEvent } from '../parser/transmit';
-import { parseBroadcastEvent } from '../parser/broadcast';
+import { parseErrorEvent } from '../parser/errorParser';
+import { parseRxImmediateEvent } from '../parser/rxImmediateParser';
+import { parseTxResultEvent } from '../parser/txResultParser';
+import { parseRxBroadcastEvent } from '../parser/rxBroadcastParser';
 import { drainAndClose, openPort, writeToPort } from './serial';
 import { areVersionsCompatible, parseSemver } from './semver';
+import { RxTransmitEvent } from '../types/rxTransmitEvent';
+import { parseRxTransmitEvent } from '../parser/rxTransmitParser';
 
 export enum ConnectionState {
   Disconnected = 'Disconnected',
@@ -22,11 +24,11 @@ export enum ConnectionState {
   Error = 'Error',
 }
 
-export type EconetEvent = StatusEvent | ErrorEvent | MonitorEvent | TransmitEvent | ImmediateEvent | BroadcastEvent;
+export type EconetEvent = StatusEvent | ErrorEvent | MonitorEvent | RxTransmitEvent | RxImmediateEvent | RxBroadcastEvent | TxResultEvent;
 export type Listener = (event: EconetEvent) => void;
 type EventMatcher = (event: EconetEvent) => boolean;
 
-const parsers = [ parseStatusEvent, parseErrorEvent, parseMonitorEvent, parseTransmitEvent, parseImmediateEvent, parseBroadcastEvent ];
+const parsers = [ parseStatusEvent, parseErrorEvent, parseMonitorEvent, parseRxTransmitEvent, parseRxImmediateEvent, parseRxBroadcastEvent, parseTxResultEvent ];
 let device: string;
 let listeners: Array<Listener> = [ ];
 let state: ConnectionState = ConnectionState.Disconnected;
@@ -90,6 +92,40 @@ export const setEconetStation = async (station: number): Promise<void> => {
   await writeToPort(`SET_STATION ${station}\r`);
   await readStatus();
   // TODO: should we check that status has correct station number?
+};
+
+export const transmit = async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer): Promise<void> => {
+  if (state !== ConnectionState.Connected) {
+    throw new Error(`Cannot transmit data on device '${device}' whilst in ${state} state`);
+  }
+
+  if (station < 1 || station >= 255) {
+    throw new Error('Invalid station number');
+  }
+
+  if (network < 0 || network > 255) {
+    throw new Error('Invalid network number');
+  }
+
+  if (controlByte < 0 || controlByte >= 255) {
+    throw new Error('Invalid control byte');
+  }
+
+  if (port < 0 || port > 255) {
+    throw new Error('Invalid port number');
+  }
+
+  if (data.length + 2 > 255) {
+    throw new Error('Data too long');
+  }
+
+  if (typeof extraScoutData !== 'undefined') {
+    console.log(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')} ${extraScoutData.toString('base64')}\r`);
+    await writeToPort(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')} ${extraScoutData.toString('base64')}\r`);
+  } else {
+    console.log(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')}\r`);
+    await writeToPort(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')}\r`);
+  }
 };
 
 export const close = async (): Promise<void> => {

@@ -1,4 +1,4 @@
-import { parseErrorEvent } from './error';
+import { parseErrorEvent } from './errorParser';
 
 describe('error message parser', () => {
   it('should parse valid ERROR event', () => {

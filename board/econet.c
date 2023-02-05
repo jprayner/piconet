@@ -9,12 +9,12 @@
 
 static bool _initialised;
 
-static uint8_t* _tx_data_buffer;
-static size_t   _tx_data_buffer_sz;
 static uint8_t* _rx_scout_buffer;
 static size_t   _rx_scout_buffer_sz;
 static uint8_t* _rx_data_buffer;
 static size_t   _rx_data_buffer_sz;
+static uint8_t* _tx_scout_buffer;
+static size_t   _tx_scout_buffer_sz;
 static uint8_t* _tx_data_buffer;
 static size_t   _tx_data_buffer_sz;
 static uint8_t* _ack_buffer;
@@ -91,6 +91,8 @@ static void                     _clear_rx(void);
 static void                     _finish_tx(void);
 
 bool econet_init(
+        uint8_t*    tx_scout_buffer,
+        size_t      tx_scout_buffer_sz,
         uint8_t*    tx_data_buffer,
         size_t      tx_data_buffer_sz,
         uint8_t*    rx_scout_buffer,
@@ -106,6 +108,8 @@ bool econet_init(
     adlc_init();
     adlc_irq_reset();
 
+    _tx_scout_buffer = tx_scout_buffer;
+    _tx_scout_buffer_sz = tx_scout_buffer_sz;
     _tx_data_buffer = tx_data_buffer;
     _tx_data_buffer_sz = tx_data_buffer_sz;
     _rx_scout_buffer = rx_scout_buffer;
@@ -120,29 +124,35 @@ bool econet_init(
     return true;
 }
 
-econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint8_t* data, size_t data_len) {
+econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint8_t* data, size_t data_len, uint8_t* scout_extra_data, size_t scout_extra_data_len) {
     if (!_initialised) {
         return PICONET_TX_RESULT_ERROR_UNINITIALISED;
     }
 
-    size_t data_frame_len = data_len + 2;
+    size_t data_frame_len = data_len + 4;
     if (data_frame_len > _tx_data_buffer_sz) {
         return PICONET_TX_RESULT_ERROR_OVERFLOW;
     }
     _tx_data_buffer[0] = station;
     _tx_data_buffer[1] = network;
-    memcpy(_tx_data_buffer + 2, data, data_len);
+    _tx_data_buffer[2] = listen_addresses[0];
+    _tx_data_buffer[3] = 0x00;
+    memcpy(_tx_data_buffer + 4, data, data_len);
 
-    uint8_t scout_frame[8];
-    scout_frame[0] = station;
-    scout_frame[1] = 0x00;
-    scout_frame[2] = listen_addresses[0];
-    scout_frame[3] = 0x00;
-    scout_frame[4] = control;
-    scout_frame[5] = port;
+    size_t scout_frame_len = scout_extra_data_len + 6;
+    if (scout_frame_len > _tx_scout_buffer_sz) {
+        return PICONET_TX_RESULT_ERROR_OVERFLOW;
+    }
+    _tx_scout_buffer[0] = station;
+    _tx_scout_buffer[1] = 0x00;
+    _tx_scout_buffer[2] = listen_addresses[0];
+    _tx_scout_buffer[3] = 0x00;
+    _tx_scout_buffer[4] = control;
+    _tx_scout_buffer[5] = port;
+    memcpy(_tx_scout_buffer + 6, scout_extra_data, scout_extra_data_len);
 
     // TODO: ADLC stuff?
-    econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(scout_frame, sizeof(scout_frame)));
+    econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(_tx_scout_buffer, scout_frame_len));
     if (scout_result != PICONET_TX_RESULT_OK) {
         return scout_result;
     }
@@ -428,15 +438,10 @@ static bool _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_sta
     }
 
     t_frame_parse_result ack_frame = _parse_frame(_ack_buffer, ack_frame_result.bytes_read, false);
-    if (ack_frame.type != FRAME_TYPE_DATA) {
-        printf("[_wait_ack] parse ack failed type=%u len=%u - aborting", ack_frame.type, ack_frame_result.bytes_read);
-        return false;
-    }
-
     if (ack_frame.type != FRAME_TYPE_ACK
             || ack_frame.frame.src_station != from_station || ack_frame.frame.src_net != from_network
             || ack_frame.frame.dest_station != to_station || ack_frame.frame.dest_net != to_network) {
-        printf("[_wait_ack] unexpected frame type %d from station %u to station %u",
+        printf("ERROR [_wait_ack] unexpected frame! type %d from station %u to station %u\r",
             ack_frame.type,
             ack_frame.frame.src_station,
             ack_frame.frame.dest_station);
