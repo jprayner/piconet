@@ -1,6 +1,6 @@
 {
   "name": "@jprayner/piconet-ts",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "JavaScript/TypeScript driver for Piconet: a USB interface for the Acorn/BBC Econet based on the Raspberry Pi Pico microprocessor.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
