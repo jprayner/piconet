@@ -2,18 +2,25 @@
   "name": "@jprayner/piconet-ts",
   "version": "0.0.1",
   "description": "JavaScript/TypeScript driver for Piconet: a USB interface for the Acorn/BBC Econet based on the Raspberry Pi Pico microprocessor.",
-  "main": "dist/index",
-  "types": "dist/index",
+  "main": "dist/cjs/index.js",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.js",
   "files": [
-    "dist/**/*.js",
-    "dist/**/*.d.ts"
+    "dist"
   ],
   "scripts": {
-    "build": "tsc",
     "prepublishOnly": "npm run build",
-    "test": "jest --detectOpenHandles --coverage --config=jest.config.js",
+    "build": "npm run build:cjs && npm run build:esm && npm run build:types",
+    "build:cjs": "node tools/cleanup cjs && tsc -p config/tsconfig.cjs.json",
+    "build:esm": "node tools/cleanup esm && tsc -p config/tsconfig.esm.json",
+    "build:types": "node tools/cleanup types && tsc -p config/tsconfig.types.json",
+    "clean": "node tools/cleanup",
+    "test": "jest --no-cache --runInBand --detectOpenHandles --coverage --config=jest.config.js",
     "lint": "prettier --check . && eslint . --ext .ts,.js",
     "lint:fix": "prettier --write . && eslint --fix . --ext .ts,.js"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "lint-staged": {
     "*.{js,ts}": [
@@ -24,13 +31,23 @@
       "prettier --write"
     ]
   },
+  "keywords": [
+    "econet",
+    "bbc",
+    "piconet",
+    "pico",
+    "pi"
+  ],
+  "author": "James Rayner",
+  "license": "MIT",
+  "homepage": "https://github.com/jprayner/piconet",
   "repository": {
     "type": "git",
     "url": "git+ssh://git@github.com:jprayner/piconet.git"
   },
-  "author": "",
-  "license": "MIT",
-  "homepage": "https://github.com/jprayner/piconet",
+  "bugs": {
+    "url": "https://github.com/jprayner/piconet/issues"
+  },
   "dependencies": {
     "@serialport/bindings-cpp": "^10.8.0",
     "@serialport/parser-readline": "^10.5.0",

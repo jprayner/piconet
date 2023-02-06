@@ -5,6 +5,7 @@ import {
   addListener,
   setEconetStation,
   removeListener,
+  EconetEvent,
 } from '.';
 import { openPort, writeToPort } from './serial';
 import config from '../config';
@@ -31,7 +32,7 @@ describe('driver', () => {
 
   it('should fire events to handler registered with addListener', async () => {
     let event;
-    const eventHandler = e => {
+    const eventHandler = (e: EconetEvent) => {
       event = e;
     };
     addListener(eventHandler);
@@ -50,7 +51,7 @@ describe('driver', () => {
 
   it('should not fire events to handler removed with removeListener', async () => {
     let event;
-    const eventHandler = e => {
+    const eventHandler = (e: EconetEvent) => {
       event = e;
     };
     addListener(eventHandler);
@@ -160,7 +161,7 @@ describe('driver', () => {
   // TODO: test transmit
 });
 
-const mockStatusEventFromBoard = rxMode => {
+const mockStatusEventFromBoard = (rxMode: number) => {
   setTimeout(() => {
     const dataHandlerFunc = openPortMock.mock.calls[0][0];
     dataHandlerFunc(`STATUS ${config.version} 2 00 ${rxMode}\r`);
