@@ -15,10 +15,11 @@ jobs:
           fetch-depth: 0
       - name: Create Release
         id: create_release
-        uses: actions/create-release@v3
+        uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
+          node-version: '16.x'
           tag_name: ${{ github.ref }}
           release_name: ${{ github.ref }}
           draft: false
