@@ -141,11 +141,9 @@ describe('driver', () => {
     await expect(setEconetStation(0)).rejects.toThrow('Invalid station number');
     await close();
   });
-});
 
-async function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+  // TODO: test transmit
+});
 
 const mockStatusEventFromBoard = (rxMode) => {
   setTimeout(() => {

@@ -22,23 +22,14 @@ async function main() {
 
   await driver.setEconetStation(2);
   await driver.setMode('LISTEN');
-
-  await sendNotify('A');
-  await sleep(5);
-  await sendNotify('B');
-  await sleep(5);
-  await sendNotify('C');
-  
-  //await driver.transmit(168, 0, 0x85, 0x00, Buffer.from([0x41]), Buffer.from([0x00, 0x00, 0x41, 0x00]));
-  //while (true) {
-  await sleep(1000);
-  //}
-
+  await sendNotify('Mary had a little lamb');
   await driver.close();
 }
 
-const sendNotify = async (char) => {
-  await driver.transmit(168, 0, 0x85, 0x00, Buffer.from(char), Buffer.from([0x00, 0x00, char.charCodeAt(0), 0x00]));
+const sendNotify = async (str) => {
+  for (const char of str) {
+    await driver.transmit(168, 0, 0x85, 0x00, Buffer.from(char), Buffer.from([0x00, 0x00, char.charCodeAt(0), 0x00]));
+  }
 }
 
 const logFrame = (event) => {

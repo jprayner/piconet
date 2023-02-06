@@ -94,7 +94,7 @@ export const setEconetStation = async (station: number): Promise<void> => {
   // TODO: should we check that status has correct station number?
 };
 
-export const transmit = async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer): Promise<void> => {
+export const transmit = async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer): Promise<TxResultEvent> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(`Cannot transmit data on device '${device}' whilst in ${state} state`);
   }
@@ -126,6 +126,11 @@ export const transmit = async (station: number, network: number, controlByte: nu
     console.log(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')}\r`);
     await writeToPort(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')}\r`);
   }
+
+  const result = await waitForEvent((event => {
+    return event.type === 'TxResultEvent';
+  }), 2000);
+  return result as TxResultEvent;
 };
 
 export const close = async (): Promise<void> => {

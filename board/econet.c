@@ -151,7 +151,6 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
     _tx_scout_buffer[5] = port;
     memcpy(_tx_scout_buffer + 6, scout_extra_data, scout_extra_data_len);
 
-    // TODO: ADLC stuff?
     econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(_tx_scout_buffer, scout_frame_len));
     if (scout_result != PICONET_TX_RESULT_OK) {
         return scout_result;
