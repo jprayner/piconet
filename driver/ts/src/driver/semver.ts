@@ -6,7 +6,7 @@ export type Semver = {
 
 export const parseSemver = (version: string): Semver => {
   const parts = version.split('.');
-  if (parts.length !== 3 || parts.some((part) => isNaN(parseInt(part, 10)))) {
+  if (parts.length !== 3 || parts.some(part => isNaN(parseInt(part, 10)))) {
     throw new Error(`Invalid version string '${version}'`);
   }
 
@@ -17,6 +17,9 @@ export const parseSemver = (version: string): Semver => {
   };
 };
 
-export const areVersionsCompatible = (versionA: Semver, versionB: Semver): boolean => {
+export const areVersionsCompatible = (
+  versionA: Semver,
+  versionB: Semver,
+): boolean => {
   return versionA.major === versionB.major && versionA.minor === versionB.minor;
 };

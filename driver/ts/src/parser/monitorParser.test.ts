@@ -9,6 +9,8 @@ describe('monitor message parser', () => {
   });
 
   it('should reject invalid MONITOR event', () => {
-    expect(() => parseMonitorEvent('MONITOR')).toThrow('Protocol error. Invalid MONITOR event \'MONITOR\' received.');
+    expect(() => parseMonitorEvent('MONITOR')).toThrow(
+      "Protocol error. Invalid MONITOR event 'MONITOR' received.",
+    );
   });
 });

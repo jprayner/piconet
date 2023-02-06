@@ -9,7 +9,9 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   }
 
   if (terms.length < 2) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received.`);
+    throw new Error(
+      `Protocol error. Invalid STATUS event '${event}' received.`,
+    );
   }
   const attributes = terms.slice(1);
 
@@ -17,26 +19,37 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   try {
     parseSemver(firmwareVersionStr);
   } catch (e) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Board reports invalid version '${firmwareVersionStr}'.`);
+    throw new Error(
+      `Protocol error. Invalid STATUS event '${event}' received. Board reports invalid version '${firmwareVersionStr}'.`,
+    );
   }
 
   if (attributes.length !== 4) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Expected 4 attributes, got ${attributes.length}`);
+    throw new Error(
+      `Protocol error. Invalid STATUS event '${event}' received. Expected 4 attributes, got ${attributes.length}`,
+    );
   }
 
   const econetStationStr = attributes[1];
-  if (isNaN(parseInt(econetStationStr, 10))
-      || parseInt(econetStationStr, 10) < 0
-      || parseInt(econetStationStr, 10) > 255) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Invalid econet station '${econetStationStr}'.`);
+  if (
+    isNaN(parseInt(econetStationStr, 10)) ||
+    parseInt(econetStationStr, 10) < 0 ||
+    parseInt(econetStationStr, 10) > 255
+  ) {
+    throw new Error(
+      `Protocol error. Invalid STATUS event '${event}' received. Invalid econet station '${econetStationStr}'.`,
+    );
   }
 
   const statusRegister1Str = attributes[2];
   if (
-      isNaN(parseInt(statusRegister1Str, 16))
-      || parseInt(statusRegister1Str, 16) < 0x00
-      || parseInt(statusRegister1Str, 16) > 0xff) {
-    throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Invalid status register 1 value '${statusRegister1Str}'.`);
+    isNaN(parseInt(statusRegister1Str, 16)) ||
+    parseInt(statusRegister1Str, 16) < 0x00 ||
+    parseInt(statusRegister1Str, 16) > 0xff
+  ) {
+    throw new Error(
+      `Protocol error. Invalid STATUS event '${event}' received. Invalid status register 1 value '${statusRegister1Str}'.`,
+    );
   }
 
   const boardStateStr = attributes[3];
@@ -52,7 +65,9 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
       rxState = RxMode.Monitoring;
       break;
     default:
-      throw new Error(`Protocol error. Invalid STATUS event '${event}' received. Invalid board state value '${boardStateStr}'.`);
+      throw new Error(
+        `Protocol error. Invalid STATUS event '${event}' received. Invalid board state value '${boardStateStr}'.`,
+      );
   }
 
   return {

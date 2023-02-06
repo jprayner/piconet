@@ -1,6 +1,8 @@
 import { RxImmediateEvent } from '../types/rxImmediateEvent';
 
-export const parseRxImmediateEvent = (event: string): RxImmediateEvent | undefined => {
+export const parseRxImmediateEvent = (
+  event: string,
+): RxImmediateEvent | undefined => {
   const terms = event.split(' ');
 
   if (terms.length == 0 || terms[0] !== 'RX_IMMEDIATE') {
@@ -8,7 +10,9 @@ export const parseRxImmediateEvent = (event: string): RxImmediateEvent | undefin
   }
 
   if (terms.length < 3) {
-    throw new Error(`Protocol error. Invalid RX_IMMEDIATE event '${event}' received.`);
+    throw new Error(
+      `Protocol error. Invalid RX_IMMEDIATE event '${event}' received.`,
+    );
   }
   const attributes = terms.slice(1);
 
@@ -21,6 +25,8 @@ export const parseRxImmediateEvent = (event: string): RxImmediateEvent | undefin
       dataFrame: Buffer.from(data, 'base64'),
     };
   } catch (e) {
-    throw new Error(`Protocol error. Invalid RX_IMMEDIATE event '${event}' received. Failed to parse base64 data.`);
+    throw new Error(
+      `Protocol error. Invalid RX_IMMEDIATE event '${event}' received. Failed to parse base64 data.`,
+    );
   }
 };

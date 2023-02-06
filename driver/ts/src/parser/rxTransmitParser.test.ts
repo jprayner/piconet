@@ -10,6 +10,8 @@ describe('rx transmit message parser', () => {
   });
 
   it('should reject invalid RX_TRANSMIT event', () => {
-    expect(() => parseRxTransmitEvent('RX_TRANSMIT abcdef123')).toThrow('Protocol error. Invalid RX_TRANSMIT event \'RX_TRANSMIT abcdef123\' received.');
+    expect(() => parseRxTransmitEvent('RX_TRANSMIT abcdef123')).toThrow(
+      "Protocol error. Invalid RX_TRANSMIT event 'RX_TRANSMIT abcdef123' received.",
+    );
   });
 });

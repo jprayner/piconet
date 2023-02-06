@@ -10,6 +10,8 @@ describe('immediate message parser', () => {
   });
 
   it('should reject invalid RX_IMMEDIATE event', () => {
-    expect(() => parseRxImmediateEvent('RX_IMMEDIATE abcdef123')).toThrow('Protocol error. Invalid RX_IMMEDIATE event \'RX_IMMEDIATE abcdef123\' received.');
+    expect(() => parseRxImmediateEvent('RX_IMMEDIATE abcdef123')).toThrow(
+      "Protocol error. Invalid RX_IMMEDIATE event 'RX_IMMEDIATE abcdef123' received.",
+    );
   });
 });

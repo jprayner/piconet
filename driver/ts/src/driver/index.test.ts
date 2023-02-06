@@ -1,4 +1,11 @@
-import { connect, close, setMode, addListener, setEconetStation, removeListener } from '.';
+import {
+  connect,
+  close,
+  setMode,
+  addListener,
+  setEconetStation,
+  removeListener,
+} from '.';
 import { openPort, writeToPort } from './serial';
 import config from '../config';
 
@@ -24,7 +31,7 @@ describe('driver', () => {
 
   it('should fire events to handler registered with addListener', async () => {
     let event;
-    const eventHandler = (e) => {
+    const eventHandler = e => {
       event = e;
     };
     addListener(eventHandler);
@@ -43,7 +50,7 @@ describe('driver', () => {
 
   it('should not fire events to handler removed with removeListener', async () => {
     let event;
-    const eventHandler = (e) => {
+    const eventHandler = e => {
       event = e;
     };
     addListener(eventHandler);
@@ -66,13 +73,17 @@ describe('driver', () => {
       dataHandlerFunc(`STATUS 99.99.99 2 00 0\r`);
     }, 100);
 
-    await expect(connect()).rejects.toThrow('Driver version 0.1.0 is not compatible with board version 99.99.99.');
+    await expect(connect()).rejects.toThrow(
+      'Driver version 0.1.0 is not compatible with board version 99.99.99.',
+    );
   });
 
   it('should return a connection failure if the board is already connected', async () => {
     mockStatusEventFromBoard(0);
     await connect();
-    await expect(connect()).rejects.toThrow('Cannot connect whilst in Connected state');
+    await expect(connect()).rejects.toThrow(
+      'Cannot connect whilst in Connected state',
+    );
     await close();
   });
 
@@ -112,7 +123,9 @@ describe('driver', () => {
     await close();
     expect(writeToPortMock).toHaveBeenCalledTimes(1);
 
-    await expect(setMode('MONITOR')).rejects.toThrow('Cannot set mode on device whilst in Disconnected state');
+    await expect(setMode('MONITOR')).rejects.toThrow(
+      'Cannot set mode on device whilst in Disconnected state',
+    );
     expect(writeToPortMock).toHaveBeenCalledTimes(1);
   });
 
@@ -130,7 +143,9 @@ describe('driver', () => {
     mockStatusEventFromBoard(0);
     await connect();
 
-    await expect(setEconetStation(255)).rejects.toThrow('Invalid station number');
+    await expect(setEconetStation(255)).rejects.toThrow(
+      'Invalid station number',
+    );
     await close();
   });
 
@@ -145,9 +160,9 @@ describe('driver', () => {
   // TODO: test transmit
 });
 
-const mockStatusEventFromBoard = (rxMode) => {
+const mockStatusEventFromBoard = rxMode => {
   setTimeout(() => {
     const dataHandlerFunc = openPortMock.mock.calls[0][0];
     dataHandlerFunc(`STATUS ${config.version} 2 00 ${rxMode}\r`);
   }, 100);
-}
+};

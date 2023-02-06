@@ -24,17 +24,35 @@ export enum ConnectionState {
   Error = 'Error',
 }
 
-export type EconetEvent = StatusEvent | ErrorEvent | MonitorEvent | RxTransmitEvent | RxImmediateEvent | RxBroadcastEvent | TxResultEvent;
+export type EconetEvent =
+  | StatusEvent
+  | ErrorEvent
+  | MonitorEvent
+  | RxTransmitEvent
+  | RxImmediateEvent
+  | RxBroadcastEvent
+  | TxResultEvent;
 export type Listener = (event: EconetEvent) => void;
 type EventMatcher = (event: EconetEvent) => boolean;
 
-const parsers = [ parseStatusEvent, parseErrorEvent, parseMonitorEvent, parseRxTransmitEvent, parseRxImmediateEvent, parseRxBroadcastEvent, parseTxResultEvent ];
+const parsers = [
+  parseStatusEvent,
+  parseErrorEvent,
+  parseMonitorEvent,
+  parseRxTransmitEvent,
+  parseRxImmediateEvent,
+  parseRxBroadcastEvent,
+  parseTxResultEvent,
+];
 let device: string;
-let listeners: Array<Listener> = [ ];
+let listeners: Array<Listener> = [];
 let state: ConnectionState = ConnectionState.Disconnected;
 
 export const connect = async (requestedDevice?: string): Promise<void> => {
-  if (state !== ConnectionState.Disconnected && state !== ConnectionState.Error) {
+  if (
+    state !== ConnectionState.Disconnected &&
+    state !== ConnectionState.Error
+  ) {
     throw new Error(`Cannot connect whilst in ${state} state`);
   }
 
@@ -48,9 +66,11 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
     const driverVersionStr = config.version;
     const driverVersion = parseSemver(config.version);
     if (!areVersionsCompatible(firmwareVersion, driverVersion)) {
-      throw new Error(`Driver version ${driverVersionStr} is not compatible with board version ${firmwareVersionStr}.`);
+      throw new Error(
+        `Driver version ${driverVersionStr} is not compatible with board version ${firmwareVersionStr}.`,
+      );
     }
-  
+
     state = ConnectionState.Connected;
   } catch (e) {
     state = ConnectionState.Error;
@@ -58,7 +78,9 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
   }
 };
 
-export const setMode = async (mode: 'STOP' | 'MONITOR' | 'LISTEN'): Promise<void> => {
+export const setMode = async (
+  mode: 'STOP' | 'MONITOR' | 'LISTEN',
+): Promise<void> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(`Cannot set mode on device whilst in ${state} state`);
   }
@@ -82,7 +104,9 @@ export const setMode = async (mode: 'STOP' | 'MONITOR' | 'LISTEN'): Promise<void
 
 export const setEconetStation = async (station: number): Promise<void> => {
   if (state !== ConnectionState.Connected) {
-    throw new Error(`Cannot set econet station number on device '${device}' whilst in ${state} state`);
+    throw new Error(
+      `Cannot set econet station number on device '${device}' whilst in ${state} state`,
+    );
   }
 
   if (station < 1 || station >= 255) {
@@ -94,9 +118,18 @@ export const setEconetStation = async (station: number): Promise<void> => {
   // TODO: should we check that status has correct station number?
 };
 
-export const transmit = async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer): Promise<TxResultEvent> => {
+export const transmit = async (
+  station: number,
+  network: number,
+  controlByte: number,
+  port: number,
+  data: Buffer,
+  extraScoutData?: Buffer,
+): Promise<TxResultEvent> => {
   if (state !== ConnectionState.Connected) {
-    throw new Error(`Cannot transmit data on device '${device}' whilst in ${state} state`);
+    throw new Error(
+      `Cannot transmit data on device '${device}' whilst in ${state} state`,
+    );
   }
 
   if (station < 1 || station >= 255) {
@@ -120,16 +153,32 @@ export const transmit = async (station: number, network: number, controlByte: nu
   }
 
   if (typeof extraScoutData !== 'undefined') {
-    console.log(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')} ${extraScoutData.toString('base64')}\r`);
-    await writeToPort(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')} ${extraScoutData.toString('base64')}\r`);
+    console.log(
+      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
+        'base64',
+      )} ${extraScoutData.toString('base64')}\r`,
+    );
+    await writeToPort(
+      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
+        'base64',
+      )} ${extraScoutData.toString('base64')}\r`,
+    );
   } else {
-    console.log(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')}\r`);
-    await writeToPort(`TX ${station} ${network} ${controlByte} ${port} ${data.toString('base64')}\r`);
+    console.log(
+      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
+        'base64',
+      )}\r`,
+    );
+    await writeToPort(
+      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
+        'base64',
+      )}\r`,
+    );
   }
 
-  const result = await waitForEvent((event => {
+  const result = await waitForEvent(event => {
     return event.type === 'TxResultEvent';
-  }), 2000);
+  }, 2000);
   return result as TxResultEvent;
 };
 
@@ -142,7 +191,7 @@ export const close = async (): Promise<void> => {
 };
 
 export const addListener = (listener: Listener) => {
-  if (!listeners.find((l) => l === listener)) {
+  if (!listeners.find(l => l === listener)) {
     listeners.push(listener);
   }
 };
@@ -152,11 +201,14 @@ export const removeListener = (listener: Listener) => {
 };
 
 export const fireListeners = (event: EconetEvent) => {
-  listeners.forEach((listener) => listener(event));
+  listeners.forEach(listener => listener(event));
 };
 
 const handleData = (data: string) => {
-  if (state !== ConnectionState.Connected && state !== ConnectionState.Connecting) {
+  if (
+    state !== ConnectionState.Connected &&
+    state !== ConnectionState.Connecting
+  ) {
     return;
   }
 
@@ -169,18 +221,26 @@ const handleData = (data: string) => {
 };
 
 const readStatus = async (): Promise<StatusEvent> => {
-  if (state !== ConnectionState.Connecting && state !== ConnectionState.Connected) {
-    throw new Error(`Cannot read status from device '${device}' whilst in ${state} state`);
+  if (
+    state !== ConnectionState.Connecting &&
+    state !== ConnectionState.Connected
+  ) {
+    throw new Error(
+      `Cannot read status from device '${device}' whilst in ${state} state`,
+    );
   }
 
   await writeToPort('STATUS\r');
-  const result = await waitForEvent((event => {
+  const result = await waitForEvent(event => {
     return event.type === 'status';
-  }), 2000);
+  }, 2000);
   return result as StatusEvent;
 };
 
-const waitForEvent = async (matcher: EventMatcher, timeoutMs: number): Promise<EconetEvent> => {
+const waitForEvent = async (
+  matcher: EventMatcher,
+  timeoutMs: number,
+): Promise<EconetEvent> => {
   return new Promise((resolve, reject) => {
     // eslint-disable-next-line prefer-const
     let listener: Listener;

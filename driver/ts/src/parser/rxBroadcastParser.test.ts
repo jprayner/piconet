@@ -9,6 +9,8 @@ describe('rx broadcast message parser', () => {
   });
 
   it('should reject invalid RX_BROADCAST event', () => {
-    expect(() => parseRxBroadcastEvent('RX_BROADCAST')).toThrow('Protocol error. Invalid RX_BROADCAST event \'RX_BROADCAST\' received.');
+    expect(() => parseRxBroadcastEvent('RX_BROADCAST')).toThrow(
+      "Protocol error. Invalid RX_BROADCAST event 'RX_BROADCAST' received.",
+    );
   });
 });

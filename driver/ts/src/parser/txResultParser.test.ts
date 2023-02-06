@@ -9,6 +9,8 @@ describe('tx result message parser', () => {
   });
 
   it('should reject invalid TX_RESULT event', () => {
-    expect(() => parseTxResultEvent('TX_RESULT')).toThrow('Protocol error. Invalid TX_RESULT event \'TX_RESULT\' received.');
+    expect(() => parseTxResultEvent('TX_RESULT')).toThrow(
+      "Protocol error. Invalid TX_RESULT event 'TX_RESULT' received.",
+    );
   });
 });

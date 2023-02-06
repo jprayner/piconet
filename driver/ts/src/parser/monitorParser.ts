@@ -8,7 +8,9 @@ export const parseMonitorEvent = (event: string): MonitorEvent | undefined => {
   }
 
   if (terms.length < 2) {
-    throw new Error(`Protocol error. Invalid MONITOR event '${event}' received.`);
+    throw new Error(
+      `Protocol error. Invalid MONITOR event '${event}' received.`,
+    );
   }
   const attributes = terms.slice(1);
 
@@ -19,6 +21,8 @@ export const parseMonitorEvent = (event: string): MonitorEvent | undefined => {
       econetFrame: Buffer.from(data, 'base64'),
     };
   } catch (e) {
-    throw new Error(`Protocol error. Invalid MONITOR event '${event}' received. Failed to parse base64 data.`);
+    throw new Error(
+      `Protocol error. Invalid MONITOR event '${event}' received. Failed to parse base64 data.`,
+    );
   }
 };

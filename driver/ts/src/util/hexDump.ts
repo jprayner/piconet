@@ -5,7 +5,7 @@ export const hexDump = (buff: Buffer): string => {
 
   let lineHex = '';
   let lineAscii = '';
-  
+
   let ret = '';
 
   let offset = 0;

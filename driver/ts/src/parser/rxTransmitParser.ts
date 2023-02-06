@@ -1,6 +1,8 @@
 import { RxTransmitEvent } from '../types/rxTransmitEvent';
 
-export const parseRxTransmitEvent = (event: string): RxTransmitEvent | undefined => {
+export const parseRxTransmitEvent = (
+  event: string,
+): RxTransmitEvent | undefined => {
   const terms = event.split(' ');
 
   if (terms.length == 0 || terms[0] !== 'RX_TRANSMIT') {
@@ -8,7 +10,9 @@ export const parseRxTransmitEvent = (event: string): RxTransmitEvent | undefined
   }
 
   if (terms.length < 3) {
-    throw new Error(`Protocol error. Invalid RX_TRANSMIT event '${event}' received.`);
+    throw new Error(
+      `Protocol error. Invalid RX_TRANSMIT event '${event}' received.`,
+    );
   }
   const attributes = terms.slice(1);
 

@@ -1,6 +1,8 @@
 import { TxResultEvent } from '../types/txResultEvent';
 
-export const parseTxResultEvent = (event: string): TxResultEvent | undefined => {
+export const parseTxResultEvent = (
+  event: string,
+): TxResultEvent | undefined => {
   const terms = event.split(' ');
 
   if (terms.length == 0 || terms[0] !== 'TX_RESULT') {
@@ -8,7 +10,9 @@ export const parseTxResultEvent = (event: string): TxResultEvent | undefined => 
   }
 
   if (terms.length < 2) {
-    throw new Error(`Protocol error. Invalid TX_RESULT event '${event}' received.`);
+    throw new Error(
+      `Protocol error. Invalid TX_RESULT event '${event}' received.`,
+    );
   }
   const attributes = terms.slice(1);
 
