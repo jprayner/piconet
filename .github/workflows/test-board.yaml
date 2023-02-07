@@ -26,4 +26,3 @@ jobs:
         export PICO_SDK_PATH=/pico-sdk
         cmake .
         cmake --build ./
-        beebasm -v -i main.asm -do jumbo.ssd -opt 3

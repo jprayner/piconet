@@ -7,18 +7,30 @@ on:
 
 jobs:
   release:
+    name: Build firmware and release
     runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/jprayner/piconet-build-board-image:latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: 'README.md'
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Build
+      working-directory: ./board
+      run: |
+        export PICO_SDK_PATH=/pico-sdk
+        cmake .
+        cmake --build ./
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          README.md
+          /piconet/board/piconet.uf2
 
-  publish:
+  publish-ts-driver:
+    name: Publish TypeScript driver to NPM
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
