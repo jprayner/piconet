@@ -1,38 +1,39 @@
 import { driver } from '@jprayner/piconet-ts';
 import { hexdump } from '@gct256/hexdump';
+import { EconetEvent } from '@jprayner/piconet-ts/dist/types/driver';
 
 async function main() {
+  console.log('Connecting to board...');
   await driver.connect();
-  // await driver.setEconetStation(2);
 
-  // await driver.setMode('MONITOR');
   driver.addListener((event) => {
+    console.log(event);
     if (event.type === 'ErrorEvent') {
       console.log('========================');
       console.log(`ERROR: ${event.description}`);
-      console.log('========================\n');
-    } else if (event.type === 'TxResultEvent') {
-      console.log('========================');
-      console.log(`TX RESULT: ${event.result}`);
       console.log('========================\n');
     } else {
       logFrame(event);
     }
   });
 
-  await driver.setEconetStation(2);
-  await driver.setMode('LISTEN');
-  await sendNotify('Hi');
+  await driver.setMode('MONITOR');
+
+  console.log('Listening for traffic...');
+
+  await sleep(10000);
+  // process.on('SIGINT', async () => {
+  console.log('Disconnecting from board...');
   await driver.close();
+  process.exit();
+  // });  
 }
 
-const sendNotify = async (str) => {
-  for (const char of str) {
-    await driver.transmit(168, 0, 0x85, 0x00, Buffer.from(char), Buffer.from([0x00, 0x00, char.charCodeAt(0), 0x00]));
-  }
+const sleep = async (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-const logFrame = (event) => {
+const logFrame = (event: EconetEvent) => {
   const hasScoutAndDataFrames = event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
   const hasEconetFrame = event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
   const hasAnyFrame = hasScoutAndDataFrames || hasEconetFrame;
@@ -49,9 +50,5 @@ const logFrame = (event) => {
     }
   }
 };
-
-async function sleep(ms) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 main();
