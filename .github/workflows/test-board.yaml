@@ -1,4 +1,4 @@
-name: Test Build Board Image
+name: Test board firmware build
 
 on:
   workflow_dispatch:
