@@ -1,0 +1,29 @@
+name: Test Build Board Image
+
+on:
+  workflow_dispatch:
+  push:
+    tags-ignore:
+      - '**'
+    paths:
+      - 'board/**'
+      - '.github/workflows/test-board.yaml'
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    container:
+      image: ghcr.io/jprayner/piconet-build-board-image:latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+    - name: Build
+      working-directory: ./board
+      run: |
+        export PICO_SDK_PATH=/pico-sdk
+        cmake .
+        cmake --build ./
+        beebasm -v -i main.asm -do jumbo.ssd -opt 3
