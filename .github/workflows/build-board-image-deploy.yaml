@@ -1,6 +1,7 @@
 name: Create and publish build image
 
 on:
+  workflow_dispatch:
   push:
     tags-ignore:
       - '**'
