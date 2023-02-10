@@ -74,6 +74,5 @@ void adlc_write_cr4(uint data_val);
 void adlc_write_fifo(uint data_val);
 void adlc_irq_reset(void);
 void adlc_flag_fill(void);
-bool adlc_get_irq(void);
 
 #endif

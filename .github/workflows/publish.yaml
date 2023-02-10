@@ -29,8 +29,8 @@ jobs:
           README.md
           ./board/piconet.uf2
 
-  publish-ts-driver:
-    name: Publish driver
+  publish-nodejs-driver:
+    name: Publish NodeJS driver
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -43,13 +43,19 @@ jobs:
           node-version: '16.x'
           registry-url: 'https://registry.npmjs.org'
       - name: Install modules
-        working-directory: ./driver/ts
+        working-directory: ./driver/nodejs
         run: npm install
+      - name: Run tests
+        working-directory: ./driver/nodejs
+        run: npm test
+      - name: Lint
+        working-directory: ./driver/nodejs
+        run: npm run lint
       - name: Build
-        working-directory: ./driver/ts
+        working-directory: ./driver/nodejs
         run: npm run build
       - name: Publish to npm
-        working-directory: ./driver/ts
+        working-directory: ./driver/nodejs
         run: npm publish --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

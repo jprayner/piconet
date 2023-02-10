@@ -1,4 +1,4 @@
-name: Test TypeScript Driver
+name: Test NodeJS Driver
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - '**'
     paths:
       - 'driver/ts/**'
-      - '.github/workflows/test-driver-ts.yaml'
+      - '.github/workflows/test-driver-nodejs.yaml'
 
 jobs: 
   test-driver-ts:
@@ -33,3 +33,6 @@ jobs:
       - name: Run tests
         working-directory: ./driver/ts
         run: npm test
+      - name: Lint
+        working-directory: ./driver/ts
+        run: npm run lint

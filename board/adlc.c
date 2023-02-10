@@ -22,7 +22,6 @@ const uint GPIO_DATA_5 = 7;
 const uint GPIO_DATA_6 = 8;
 const uint GPIO_DATA_7 = 9;
 
-const uint GPIO_BUFF_IRQ = 10;
 const uint GPIO_BUFF_A0 = 11;
 const uint GPIO_BUFF_A1 = 12;
 const uint GPIO_BUFF_CS = 13;
@@ -131,8 +130,4 @@ void adlc_irq_reset(void) {
 
 void adlc_flag_fill(void) {
   adlc_write(REG_CONTROL_2, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
-}
-
-bool adlc_get_irq(void) {
-    return !gpio_get(GPIO_BUFF_IRQ); // active low so invert
 }
