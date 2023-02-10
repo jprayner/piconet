@@ -5,7 +5,7 @@ on:
     tags-ignore:
       - '**'
     paths:
-      - 'driver/ts/**'
+      - 'driver/nodejs/**'
       - '.github/workflows/test-driver-nodejs.yaml'
 
 jobs: 
@@ -28,11 +28,11 @@ jobs:
         with:
           node-version: ${{ matrix.node }}
       - name: Install modules
-        working-directory: ./driver/ts
+        working-directory: ./driver/nodejs
         run: npm install
       - name: Run tests
-        working-directory: ./driver/ts
+        working-directory: ./driver/nodejs
         run: npm test
       - name: Lint
-        working-directory: ./driver/ts
+        working-directory: ./driver/nodejs
         run: npm run lint
