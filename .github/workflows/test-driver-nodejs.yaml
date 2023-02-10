@@ -1,6 +1,7 @@
 name: Test NodeJS Driver
 
 on:
+  workflow_dispatch:
   push:
     tags-ignore:
       - '**'
