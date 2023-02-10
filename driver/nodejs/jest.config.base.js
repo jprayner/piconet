@@ -4,7 +4,7 @@ module.exports = {
   automock: false,
   resetMocks: false,
   transform: {
-    '^.+\\.(t|j)sx?$': ['ts-jest'],
+    '^.+\\.tsx?$': ['ts-jest'],
   },
   globals: {
     'ts-jest': {

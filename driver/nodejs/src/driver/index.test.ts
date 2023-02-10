@@ -26,8 +26,8 @@ describe('driver', () => {
       dataHandlerFunc(`STATUS ${config.version} 2 00 0\r`);
     }, 100);
 
-    await connect();
-    await close();
+    await expect(connect()).resolves.toBeUndefined();
+    await expect(close()).resolves.toBeUndefined();
   });
 
   it('should fire events to handler registered with addListener', async () => {
@@ -71,7 +71,7 @@ describe('driver', () => {
   it('should return a connection failure if versions do not match', async () => {
     setTimeout(() => {
       const dataHandlerFunc = openPortMock.mock.calls[0][0];
-      dataHandlerFunc(`STATUS 99.99.99 2 00 0\r`);
+      dataHandlerFunc('STATUS 99.99.99 2 00 0\r');
     }, 100);
 
     await expect(connect()).rejects.toThrow(
@@ -130,7 +130,7 @@ describe('driver', () => {
     expect(writeToPortMock).toHaveBeenCalledTimes(1);
   });
 
-  it('should send SET_STATION correctly on call to ', async () => {
+  it('should send SET_STATION correctly on call to setEconetStation', async () => {
     mockStatusEventFromBoard(0);
     await connect();
 

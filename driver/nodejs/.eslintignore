@@ -8,5 +8,5 @@ coverage
 package-lock.json
 tsconfig.json
 jest.*
-src/**/*.test.ts
-src/api/*
+tools/*
+config/*
