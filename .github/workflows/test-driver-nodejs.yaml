@@ -10,7 +10,7 @@ on:
       - '.github/workflows/test-driver-nodejs.yaml'
 
 jobs: 
-  test-driver-ts:
+  test-driver-nodejs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:

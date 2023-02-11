@@ -75,7 +75,7 @@ describe('driver', () => {
     }, 100);
 
     await expect(connect()).rejects.toThrow(
-      'Driver version 0.1.0 is not compatible with board version 99.99.99.',
+      `Driver version ${config.version} is not compatible with board firmware version 99.99.99.`,
     );
   });
 
