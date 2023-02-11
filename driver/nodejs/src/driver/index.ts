@@ -130,9 +130,7 @@ export const transmit = async (
   extraScoutData?: Buffer,
 ): Promise<TxResultEvent> => {
   if (state !== ConnectionState.Connected) {
-    throw new Error(
-      `Cannot transmit data on device whilst in ${state} state`,
-    );
+    throw new Error(`Cannot transmit data on device whilst in ${state} state`);
   }
 
   if (station < 1 || station >= 255) {
@@ -159,7 +157,7 @@ export const transmit = async (
     if (extraScoutData.length > config.maxScoutExtraDataLength) {
       throw new Error('Extra scout data too long');
     }
-  
+
     console.log(
       `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
         'base64',
@@ -194,21 +192,11 @@ export const reply = async (
   data: Buffer,
 ): Promise<ReplyResultEvent> => {
   if (state !== ConnectionState.Connected) {
-    throw new Error(
-      `Cannot transmit data whilst in ${state} state`,
-    );
+    throw new Error(`Cannot transmit data whilst in ${state} state`);
   }
 
-  console.log(
-    `REPLY ${receiveId} ${data.toString(
-      'base64',
-    )}\r`,
-  );
-  await writeToPort(
-    `REPLY ${receiveId} ${data.toString(
-      'base64',
-    )}\r`,
-  );
+  console.log(`REPLY ${receiveId} ${data.toString('base64')}\r`);
+  await writeToPort(`REPLY ${receiveId} ${data.toString('base64')}\r`);
 
   const result = await waitForEvent(event => {
     return event.type === 'ReplyResultEvent';
@@ -259,9 +247,7 @@ const readStatus = async (): Promise<StatusEvent> => {
     state !== ConnectionState.Connecting &&
     state !== ConnectionState.Connected
   ) {
-    throw new Error(
-      `Cannot read status from device whilst in ${state} state`,
-    );
+    throw new Error(`Cannot read status from device whilst in ${state} state`);
   }
 
   await writeToPort('STATUS\r');
