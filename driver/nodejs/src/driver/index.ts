@@ -15,6 +15,8 @@ import { drainAndClose, openPort, writeToPort } from './serial';
 import { areVersionsCompatible, parseSemver } from './semver';
 import { RxTransmitEvent } from '../types/rxTransmitEvent';
 import { parseRxTransmitEvent } from '../parser/rxTransmitParser';
+import { ReplyResultEvent } from '../types/replyResultEvent';
+import { parseReplyResultEvent } from '../parser/replyResultParser';
 
 export enum ConnectionState {
   Disconnected = 'Disconnected',
@@ -31,7 +33,8 @@ export type EconetEvent =
   | RxTransmitEvent
   | RxImmediateEvent
   | RxBroadcastEvent
-  | TxResultEvent;
+  | TxResultEvent
+  | ReplyResultEvent;
 export type Listener = (event: EconetEvent) => void;
 type EventMatcher = (event: EconetEvent) => boolean;
 
@@ -43,8 +46,8 @@ const parsers = [
   parseRxImmediateEvent,
   parseRxBroadcastEvent,
   parseTxResultEvent,
+  parseReplyResultEvent,
 ];
-let device: string;
 let listeners: Array<Listener> = [];
 let state: ConnectionState = ConnectionState.Disconnected;
 
@@ -67,7 +70,7 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
     const driverVersion = parseSemver(config.version);
     if (!areVersionsCompatible(firmwareVersion, driverVersion)) {
       throw new Error(
-        `Driver version ${driverVersionStr} is not compatible with board version ${firmwareVersionStr}.`,
+        `Driver version ${driverVersionStr} is not compatible with board firmware version ${firmwareVersionStr}.`,
       );
     }
 
@@ -105,7 +108,7 @@ export const setMode = async (
 export const setEconetStation = async (station: number): Promise<void> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(
-      `Cannot set econet station number on device '${device}' whilst in ${state} state`,
+      `Cannot set econet station number on device whilst in ${state} state`,
     );
   }
 
@@ -128,7 +131,7 @@ export const transmit = async (
 ): Promise<TxResultEvent> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(
-      `Cannot transmit data on device '${device}' whilst in ${state} state`,
+      `Cannot transmit data on device whilst in ${state} state`,
     );
   }
 
@@ -148,11 +151,15 @@ export const transmit = async (
     throw new Error('Invalid port number');
   }
 
-  if (data.length + 2 > 255) {
+  if (data.length > config.maxTxDataLength) {
     throw new Error('Data too long');
   }
 
   if (typeof extraScoutData !== 'undefined') {
+    if (extraScoutData.length > config.maxScoutExtraDataLength) {
+      throw new Error('Extra scout data too long');
+    }
+  
     console.log(
       `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
         'base64',
@@ -182,9 +189,36 @@ export const transmit = async (
   return result as TxResultEvent;
 };
 
+export const reply = async (
+  receiveId: number,
+  data: Buffer,
+): Promise<ReplyResultEvent> => {
+  if (state !== ConnectionState.Connected) {
+    throw new Error(
+      `Cannot transmit data whilst in ${state} state`,
+    );
+  }
+
+  console.log(
+    `REPLY ${receiveId} ${data.toString(
+      'base64',
+    )}\r`,
+  );
+  await writeToPort(
+    `REPLY ${receiveId} ${data.toString(
+      'base64',
+    )}\r`,
+  );
+
+  const result = await waitForEvent(event => {
+    return event.type === 'ReplyResultEvent';
+  }, 2000);
+  return result as ReplyResultEvent;
+};
+
 export const close = async (): Promise<void> => {
   if (state !== ConnectionState.Connected) {
-    throw new Error(`Cannot close device '${device}' whilst in ${state} state`);
+    throw new Error(`Cannot close device whilst in ${state} state`);
   }
   await drainAndClose();
   state = ConnectionState.Disconnected;
@@ -226,7 +260,7 @@ const readStatus = async (): Promise<StatusEvent> => {
     state !== ConnectionState.Connected
   ) {
     throw new Error(
-      `Cannot read status from device '${device}' whilst in ${state} state`,
+      `Cannot read status from device whilst in ${state} state`,
     );
   }
 

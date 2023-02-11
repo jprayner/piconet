@@ -7,21 +7,6 @@
 #include "adlc.h"
 #include "util.h"
 
-static bool _initialised;
-
-static uint8_t* _rx_scout_buffer;
-static size_t   _rx_scout_buffer_sz;
-static uint8_t* _rx_data_buffer;
-static size_t   _rx_data_buffer_sz;
-static uint8_t* _tx_scout_buffer;
-static size_t   _tx_scout_buffer_sz;
-static uint8_t* _tx_data_buffer;
-static size_t   _tx_data_buffer_sz;
-static uint8_t* _ack_buffer;
-static size_t   _ack_buffer_sz;
-
-uint8_t listen_addresses[] = { 0x02, 0xFF };
-
 typedef struct {
     uint8_t     dest_station;
     uint8_t     dest_net;
@@ -73,6 +58,14 @@ typedef enum eFrameWriteStatus {
     FRAME_WRITE_UNEXPECTED,
 } tFrameWriteStatus;
 
+typedef struct {
+    bool        valid;
+    uint32_t    expiry;
+    uint32_t    reply_id;
+    uint8_t     station;
+    uint8_t     net;
+} pending_reply_t;
+
 static t_frame_read_result      _read_frame(uint8_t* buffer, size_t buffer_len, uint8_t* addr, size_t addr_len, uint timeout_ms);
 static t_frame_parse_result     _parse_frame(uint8_t* buffer, size_t len, bool is_opening_frame);
 static econet_rx_result_t       _handle_first_frame();
@@ -89,6 +82,22 @@ static econet_rx_result_t       _map_read_frame_result(t_frame_read_status statu
 static void                     _abort_read(void);
 static void                     _clear_rx(void);
 static void                     _finish_tx(void);
+
+
+static bool                     _initialised;
+uint8_t                         _listen_addresses[] = { 0x02, 0xFF };
+pending_reply_t                 _pending_reply;
+
+static uint8_t* _rx_scout_buffer;
+static size_t   _rx_scout_buffer_sz;
+static uint8_t* _rx_data_buffer;
+static size_t   _rx_data_buffer_sz;
+static uint8_t* _tx_scout_buffer;
+static size_t   _tx_scout_buffer_sz;
+static uint8_t* _tx_data_buffer;
+static size_t   _tx_data_buffer_sz;
+static uint8_t* _ack_buffer;
+static size_t   _ack_buffer_sz;
 
 bool econet_init(
         uint8_t*    tx_scout_buffer,
@@ -124,7 +133,15 @@ bool econet_init(
     return true;
 }
 
-econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, uint8_t port, uint8_t* data, size_t data_len, uint8_t* scout_extra_data, size_t scout_extra_data_len) {
+econet_tx_result_t transmit(
+        uint8_t         station,
+        uint8_t         network,
+        uint8_t         control,
+        uint8_t         port,
+        const uint8_t*  data,
+        size_t          data_len,
+        const uint8_t*  scout_extra_data,
+        size_t          scout_extra_data_len) {
     if (!_initialised) {
         return PICONET_TX_RESULT_ERROR_UNINITIALISED;
     }
@@ -135,7 +152,7 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
     }
     _tx_data_buffer[0] = station;
     _tx_data_buffer[1] = network;
-    _tx_data_buffer[2] = listen_addresses[0];
+    _tx_data_buffer[2] = _listen_addresses[0];
     _tx_data_buffer[3] = 0x00;
     memcpy(_tx_data_buffer + 4, data, data_len);
 
@@ -145,7 +162,7 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
     }
     _tx_scout_buffer[0] = station;
     _tx_scout_buffer[1] = 0x00;
-    _tx_scout_buffer[2] = listen_addresses[0];
+    _tx_scout_buffer[2] = _listen_addresses[0];
     _tx_scout_buffer[3] = 0x00;
     _tx_scout_buffer[4] = control;
     _tx_scout_buffer[5] = port;
@@ -156,7 +173,7 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
         return scout_result;
     }
 
-    if (!_wait_ack(station, network, listen_addresses[0], 0x00)) {
+    if (!_wait_ack(station, network, _listen_addresses[0], 0x00)) {
         return PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK;
     }
 
@@ -165,11 +182,52 @@ econet_tx_result_t transmit(uint8_t station, uint8_t network, uint8_t control, u
         return data_result;
     }
 
-    if (!_wait_ack(station, network, listen_addresses[0], 0x00)) {
+    if (!_wait_ack(station, network, _listen_addresses[0], 0x00)) {
         return PICONET_TX_RESULT_ERROR_NO_DATA_ACK;
     }
 
     return PICONET_TX_RESULT_OK;
+}
+
+econet_tx_result_t reply(uint16_t reply_id, const uint8_t* data, size_t data_len) {
+    if (!_initialised) {
+        return PICONET_TX_RESULT_ERROR_UNINITIALISED;
+    }
+
+    if (!_pending_reply.valid || _pending_reply.reply_id != reply_id) {
+        return PICONET_TX_RESULT_ERROR_INVALID_RECEIVE_ID;
+    }
+
+    size_t data_frame_len = data_len + 2;
+    if (data_frame_len > _tx_data_buffer_sz) {
+        return PICONET_TX_RESULT_ERROR_OVERFLOW;
+    }
+    _tx_data_buffer[0] = _pending_reply.station;
+    _tx_data_buffer[1] = _pending_reply.net;
+    memcpy(_tx_data_buffer + 2, data, data_len);
+
+    _pending_reply.valid = false;
+
+    econet_tx_result_t data_result = _tx_result_for_frame_status(_tx_frame(_tx_data_buffer, data_frame_len));
+    if (data_result != PICONET_TX_RESULT_OK) {
+        return data_result;
+    }
+
+    if (!_wait_ack(_pending_reply.station, _pending_reply.net, _listen_addresses[0], 0x00)) {
+        return PICONET_TX_RESULT_ERROR_NO_DATA_ACK;
+    }
+
+    return PICONET_TX_RESULT_OK;
+}
+
+void check_reply_timeout(void) {
+    if (_pending_reply.valid && (time_ms() < _pending_reply.expiry)) {
+        return;
+    }
+
+    // client failed to reply in time - stop idle flag to avoid jamming network
+    _pending_reply.valid = false;
+    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
 }
 
 econet_rx_result_t receive() {
@@ -217,7 +275,7 @@ econet_rx_result_t monitor() {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
-            t_frame_read_result read_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, listen_addresses, 0, 2000);
+            t_frame_read_result read_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, _listen_addresses, 0, 2000);
             _clear_rx();
 
             if (read_frame_result.status != FRAME_READ_OK) {
@@ -239,11 +297,11 @@ econet_rx_result_t monitor() {
 }
 
 uint8_t get_station() {
-    return listen_addresses[0];
+    return _listen_addresses[0];
 }
 
 void set_station(uint8_t station) {
-    listen_addresses[0] = station;
+    _listen_addresses[0] = station;
 }
 
 static t_frame_parse_result _parse_frame(uint8_t* buffer, size_t len, bool is_opening_frame) {
@@ -428,7 +486,7 @@ static bool _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_sta
             return false;
         }
 
-        ack_frame_result = _read_frame(_ack_buffer, _ack_buffer_sz, listen_addresses, 1, 2000);
+        ack_frame_result = _read_frame(_ack_buffer, _ack_buffer_sz, _listen_addresses, 1, 2000);
         if (ack_frame_result.status == FRAME_READ_OK) {
             break;
         }
@@ -466,7 +524,7 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
             return _rx_result_for_error(ECONET_RX_ERROR_TIMEOUT);
         }
 
-        data_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, listen_addresses, sizeof(listen_addresses), 2000);
+        data_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, _listen_addresses, sizeof(_listen_addresses), 2000);
         if (data_frame_result.status == FRAME_READ_OK) {
             break;
         }
@@ -502,7 +560,22 @@ static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediat
 }
 
 static econet_rx_result_t _handle_transmit_scout(t_frame_parse_result* transmit_scout_frame) {
-    return _rx_data_for_scout(transmit_scout_frame);
+    econet_rx_result_t result = _rx_data_for_scout(transmit_scout_frame);
+    if (result.type == PICONET_RX_RESULT_TRANSMIT) {
+        // set idle flag while we wait a reply
+        adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE);
+
+        _pending_reply.reply_id++;
+        _pending_reply.expiry = time_ms() + 250; // TODO constant
+        _pending_reply.station = transmit_scout_frame->frame.src_station;
+        _pending_reply.net = transmit_scout_frame->frame.src_net;
+        _pending_reply.valid = true;
+
+        result.detail.needs_reply = true;
+        result.detail.reply_id = _pending_reply.reply_id;
+    }
+
+    return result;
 }
 
 static econet_rx_result_t _handle_broadcast(t_frame_parse_result* broadcast_frame) {
@@ -516,7 +589,7 @@ static econet_rx_result_t _handle_broadcast(t_frame_parse_result* broadcast_fram
 }
 
 static econet_rx_result_t _handle_first_frame() {
-    t_frame_read_result read_frame_result = _read_frame(_rx_scout_buffer, _rx_scout_buffer_sz, listen_addresses, sizeof(listen_addresses), 2000);
+    t_frame_read_result read_frame_result = _read_frame(_rx_scout_buffer, _rx_scout_buffer_sz, _listen_addresses, sizeof(_listen_addresses), 2000);
 
     if (read_frame_result.status != FRAME_READ_OK) {
         _clear_rx();

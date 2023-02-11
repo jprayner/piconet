@@ -9,7 +9,7 @@ export const parseRxTransmitEvent = (
     return undefined;
   }
 
-  if (terms.length < 3) {
+  if (terms.length < 4) {
     throw new Error(
       `Protocol error. Invalid RX_TRANSMIT event '${event}' received.`,
     );
@@ -18,7 +18,8 @@ export const parseRxTransmitEvent = (
 
   return {
     type: 'RxTransmitEvent',
-    scoutFrame: Buffer.from(attributes[0], 'base64'),
-    dataFrame: Buffer.from(attributes[1], 'base64'),
+    receiveId: parseInt(attributes[0], 10),
+    scoutFrame: Buffer.from(attributes[1], 'base64'),
+    dataFrame: Buffer.from(attributes[2], 'base64'),
   };
 };

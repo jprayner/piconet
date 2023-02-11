@@ -10,7 +10,6 @@
 const uint LED_PIN = 25;
 
 const uint GPIO_CLK_OUT = 21;
-const uint GPIO_CLK_IN = 20;
 const uint GPIO_TMP = 15; // used to test sampling clock out pin
 
 const uint GPIO_DATA_0 = 2;
@@ -97,12 +96,6 @@ void adlc_init(void) {
 
     gpio_init(GPIO_TMP);
     gpio_set_dir(GPIO_TMP, GPIO_OUT);
-
-    // init GPIO inputs
-    gpio_init(GPIO_BUFF_IRQ);
-    gpio_set_dir(GPIO_BUFF_IRQ, GPIO_IN);
-    gpio_init(GPIO_CLK_IN);
-    gpio_set_dir(GPIO_CLK_IN, GPIO_IN);
 
     gpio_put(LED_PIN, 1);
 

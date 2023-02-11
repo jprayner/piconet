@@ -12,6 +12,7 @@ typedef enum {
     PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK,
     PICONET_TX_RESULT_ERROR_NO_DATA_ACK,
     PICONET_TX_RESULT_ERROR_TIMEOUT,
+    PICONET_TX_RESULT_ERROR_INVALID_RECEIVE_ID,
     PICONET_TX_RESULT_ERROR_MISC
 } econet_tx_result_t;
 
@@ -42,6 +43,8 @@ typedef struct {
     size_t      scout_len;
     uint8_t*    data;
     size_t      data_len;
+    bool        needs_reply;
+    uint16_t    reply_id;
 } econet_rx_result_detail_t;
 
 typedef struct
@@ -54,27 +57,34 @@ typedef struct
 } econet_rx_result_t;
 
 bool                    econet_init(
-                            uint8_t*    tx_scout_buffer,
-                            size_t      tx_scout_buffer_sz,
-                            uint8_t*    tx_data_buffer,
-                            size_t      tx_data_buffer_sz,
-                            uint8_t*    rx_scout_buffer,
-                            size_t      rx_scout_buffer_sz,
-                            uint8_t*    rx_data_buffer,
-                            size_t      rx_data_buffer_sz,
-                            uint8_t*    ack_buffer,
-                            size_t      ack_buffer_sz);
-econet_tx_result_t      broadcast(uint8_t* buff, int bytes);
+                            uint8_t*        tx_scout_buffer,
+                            size_t          tx_scout_buffer_sz,
+                            uint8_t*        tx_data_buffer,
+                            size_t          tx_data_buffer_sz,
+                            uint8_t*        rx_scout_buffer,
+                            size_t          rx_scout_buffer_sz,
+                            uint8_t*        rx_data_buffer,
+                            size_t          rx_data_buffer_sz,
+                            uint8_t*        ack_buffer,
+                            size_t          ack_buffer_sz);
+econet_tx_result_t      broadcast(
+                            const uint8_t*  buff,
+                            size_t          bytes);
 econet_tx_result_t      transmit(
-                            uint8_t     station,
-                            uint8_t     network,
-                            uint8_t     control,
-                            uint8_t     port,
-                            uint8_t*    data,
-                            size_t      data_len,
-                            uint8_t*    scout_extra_data,
-                            size_t      scout_extra_data_len);
+                            uint8_t         station,
+                            uint8_t         network,
+                            uint8_t         control,
+                            uint8_t         port,
+                            const uint8_t*  data,
+                            size_t          data_len,
+                            const uint8_t*  scout_extra_data,
+                            size_t          scout_extra_data_len);
 econet_rx_result_t      receive();
+econet_tx_result_t      reply(
+                            uint16_t        reply_id,
+                            const uint8_t*  data,
+                            size_t          data_len);
+void                    check_reply_timeout(void);
 econet_rx_result_t      monitor();
 uint8_t                 get_station();
 void                    set_station(uint8_t station);

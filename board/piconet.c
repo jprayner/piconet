@@ -23,7 +23,7 @@
 #define CMD_BUFFER_SZ           TX_DATA_BUFFER_SZ * 2
 
 #define VERSION_MAJOR           0
-#define VERSION_MINOR           1
+#define VERSION_MINOR           2
 #define VERSION_REV             1
 #define VERSION_STR_MAXLEN      16
 
@@ -32,6 +32,7 @@
 #define CMD_SET_MODE            "SET_MODE"
 #define CMD_SET_STATION         "SET_STATION"
 #define CMD_TX                  "TX"
+#define CMD_REPLY               "REPLY"
 
 #define CMD_PARAM_MODE_STOP     "STOP"
 #define CMD_PARAM_MODE_LISTEN   "LISTEN"
@@ -40,7 +41,8 @@
 typedef enum ePiconetEventType {
     PICONET_STATUS_EVENT = 0L,
     PICONET_RX_EVENT,
-    PICONET_TX_EVENT
+    PICONET_TX_EVENT,
+    PICONET_REPLY_EVENT
 } tPiconetEventType;
 
 typedef enum {
@@ -56,6 +58,7 @@ typedef struct {
     size_t                  scout_len;
     uint8_t                 data[RX_DATA_BUFFER_SZ];
     size_t                  data_len;
+    uint16_t                reply_id;
 } econet_rx_event_t;
 
 typedef struct {
@@ -75,6 +78,7 @@ typedef struct
     union {
         econet_rx_event_t   rx_event_detail;    // if type == PICONET_RX_EVENT
         econet_tx_event_t   tx_event_detail;    // if type == PICONET_TX_EVENT
+        econet_tx_event_t   reply_event_detail;    // if type == PICONET_REPLY_EVENT
         event_status_t      status;             // if type == PICONET_STATUS_EVENT
     };
 } event_t;
@@ -84,7 +88,8 @@ typedef enum {
     PICONET_CMD_RESTART,
     PICONET_CMD_SET_MODE,
     PICONET_CMD_SET_STATION,
-    PICONET_CMD_TX
+    PICONET_CMD_TX,
+    PICONET_CMD_REPLY
 } cmd_type_t;
 
 typedef struct {
@@ -94,20 +99,26 @@ typedef struct {
     uint8_t                 port;
     uint8_t                 data[TX_DATA_BUFFER_SZ];
     size_t                  data_len;
-    uint8_t                 scout_extra_data[TX_DATA_BUFFER_SZ];
+    uint8_t                 scout_extra_data[TX_DATA_BUFFER_SZ]; // TODO: really this long?
     size_t                  scout_extra_data_len;
 } cmd_tx_t;
+
+typedef struct {
+    uint16_t                reply_id;
+    uint8_t                 data[TX_DATA_BUFFER_SZ];
+    size_t                  data_len;
+} cmd_reply_t;
 
 typedef struct {
     cmd_type_t type;
     union {
         piconet_mode_t      set_mode;   // if type == PICONET_CMD_SET_MODE
         cmd_tx_t            tx;         // if type == PICONET_CMD_TX
+        cmd_reply_t         reply;      // if type == PICONET_CMD_REPLY
         uint8_t             station;    // if type == PICONET_CMD_ACK
     };
 } command_t;
 
-const uint CMD_RECEIVE = 1;
 queue_t command_queue;
 queue_t event_queue;
 command_t cmd;
@@ -166,14 +177,17 @@ void _core0_loop(void) {
                     event.status.mode);
                 break;
             }
+
             case PICONET_TX_EVENT: {
-                if (event.tx_event_detail.type == PICONET_TX_RESULT_OK) {
-                    printf("TX_RESULT OK\n");
-                } else {
-                    printf("ERROR %s\n", event.tx_event_detail.type);
-                }
+                printf("TX_RESULT %s\n", _tx_error_to_str(event.tx_event_detail.type));
                 break;
             }
+
+            case PICONET_REPLY_EVENT: {
+                printf("REPLY_RESULT %s\n", _tx_error_to_str(event.reply_event_detail.type));
+                break;
+            }
+
             case PICONET_RX_EVENT: {
                 switch (event.rx_event_detail.type) {
                     case PICONET_RX_RESULT_ERROR :
@@ -193,13 +207,15 @@ void _core0_loop(void) {
                         break;
                     case PICONET_RX_RESULT_TRANSMIT :
                         printf(
-                            "RX_TRANSMIT %s %s\n",
+                            "RX_TRANSMIT %u %s %s\n",
+                            event.rx_event_detail.reply_id,
                             _encode_base64(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
                             _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
                         break;
                 }
                 break;
             }
+
             default: {
                 printf("ERROR Unexpected event type %u\n", event.type);
                 break;
@@ -261,13 +277,19 @@ void _core1_loop(void) {
                         received_command.tx.data_len,
                         received_command.tx.scout_extra_data,
                         received_command.tx.scout_extra_data_len);
-                    if (result != PICONET_TX_RESULT_OK) {
-                        printf("ERROR %s\n", _tx_error_to_str(result));
-                    } else {
-                        event.type = PICONET_TX_EVENT;
-                        event.tx_event_detail.type = result;
-                        queue_add_blocking(&event_queue, &event);
-                    }
+                    event.type = PICONET_TX_EVENT;
+                    event.tx_event_detail.type = result;
+                    queue_add_blocking(&event_queue, &event);
+                    break;
+                }
+                case PICONET_CMD_REPLY: {
+                    econet_tx_result_t result = reply(
+                        received_command.reply.reply_id,
+                        received_command.reply.data,
+                        received_command.reply.data_len);
+                    event.type = PICONET_REPLY_EVENT;
+                    event.reply_event_detail.type = result;
+                    queue_add_blocking(&event_queue, &event);
                     break;
                 }
             }
@@ -285,6 +307,7 @@ void _core1_loop(void) {
 
         event.type = PICONET_RX_EVENT;
         event.rx_event_detail.type = rx_result.type;
+        event.rx_event_detail.reply_id = rx_result.detail.reply_id;
 
         if (rx_result.type == PICONET_RX_RESULT_ERROR) {
             event.rx_event_detail.error = rx_result.error;
@@ -386,6 +409,10 @@ void _read_command_input(void) {
             cmd.tx.port = strtol(strtok(NULL, delim), NULL, 10);
             cmd.tx.data_len = _decode_base64(strtok(NULL, delim), cmd.tx.data);
             cmd.tx.scout_extra_data_len = _decode_base64(strtok(NULL, delim), cmd.tx.scout_extra_data);
+        } else if (strcmp(ptr, CMD_REPLY) == 0) {
+            cmd.type = PICONET_CMD_REPLY;
+            cmd.reply.reply_id = strtol(strtok(NULL, delim), NULL, 10);
+            cmd.reply.data_len = _decode_base64(strtok(NULL, delim), cmd.reply.data);
         } else {
             error = true;
         }
@@ -431,23 +458,25 @@ char* _rx_error_to_str(econet_rx_error_t error) {
 char* _tx_error_to_str(econet_tx_result_t error) {
     switch (error) {
         case PICONET_TX_RESULT_OK:
-            return "PICONET_TX_RESULT_OK";
+            return "OK";
         case PICONET_TX_RESULT_ERROR_UNINITIALISED:
-            return "PICONET_TX_RESULT_ERROR_UNINITIALISED";
+            return "UNINITIALISED";
         case PICONET_TX_RESULT_ERROR_OVERFLOW:
-            return "PICONET_TX_RESULT_ERROR_OVERFLOW";
+            return "OVERFLOW";
         case PICONET_TX_RESULT_ERROR_UNDERRUN:
-            return "PICONET_TX_RESULT_ERROR_UNDERRUN";
+            return "UNDERRUN";
         case PICONET_TX_RESULT_ERROR_LINE_JAMMED:
-            return "PICONET_TX_RESULT_ERROR_LINE_JAMMED";
+            return "LINE_JAMMED";
         case PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK:
-            return "PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK";
+            return "NO_SCOUT_ACK";
         case PICONET_TX_RESULT_ERROR_NO_DATA_ACK:
-            return "PICONET_TX_RESULT_ERROR_NO_DATA_ACK";
+            return "NO_DATA_ACK";
         case PICONET_TX_RESULT_ERROR_TIMEOUT:
-            return "PICONET_TX_RESULT_ERROR_TIMEOUT";
+            return "TIMEOUT";
+        case PICONET_TX_RESULT_ERROR_INVALID_RECEIVE_ID:
+            return "INVALID_RECEIVE_ID";
         case PICONET_TX_RESULT_ERROR_MISC:
-            return "PICONET_TX_RESULT_ERROR_MISC";
+            return "MISC";
         default:
             return "UNEXPECTED";
     }
