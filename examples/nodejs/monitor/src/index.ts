@@ -1,6 +1,6 @@
-import { driver } from '@jprayner/piconet-ts';
+import { driver } from '@jprayner/piconet-nodejs';
 import { hexdump } from '@gct256/hexdump';
-import { EconetEvent } from '@jprayner/piconet-ts/dist/types/driver';
+import { EconetEvent } from '@jprayner/piconet-nodejs/dist/types/driver';
 
 async function main() {
   console.log('Connecting to board...');

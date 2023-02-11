@@ -1,4 +1,4 @@
-import { driver } from '@jprayner/piconet-ts';
+import { driver } from '@jprayner/piconet-nodejs';
 
 const localEconetStation = 2;
 const destEconetStation = 127;
