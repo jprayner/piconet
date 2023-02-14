@@ -56,6 +56,7 @@ typedef enum eFrameWriteStatus {
     FRAME_WRITE_COLLISION,
     FRAME_WRITE_READY_TIMEOUT,
     FRAME_WRITE_UNEXPECTED,
+    FRAME_WRITE_OVERFLOW
 } tFrameWriteStatus;
 
 typedef struct {
@@ -74,10 +75,11 @@ static econet_rx_result_t       _handle_immediate_scout(t_frame_parse_result* im
 static econet_rx_result_t       _handle_transmit_scout(t_frame_parse_result* transmit_scout_frame);
 static econet_rx_result_t       _handle_broadcast(t_frame_parse_result* broadcast_frame);
 static tFrameWriteStatus        _tx_frame(uint8_t* buffer, size_t len);
-static tFrameWriteStatus        _send_ack(t_frame_parse_result* incoming_frame);
+static tFrameWriteStatus        _send_ack(t_frame_parse_result* incoming_frame, const uint8_t* extra_data, size_t extra_data_len);
 static bool                     _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_station, uint8_t to_network);
 static econet_rx_result_t       _rx_result_for_error(econet_rx_error_t error);
 static econet_tx_result_t       _tx_result_for_frame_status(tFrameWriteStatus status);
+static void                     _check_reply_timeout(void);
 static econet_rx_result_t       _map_read_frame_result(t_frame_read_status status);
 static void                     _abort_read(void);
 static void                     _clear_rx(void);
@@ -220,20 +222,12 @@ econet_tx_result_t reply(uint16_t reply_id, const uint8_t* data, size_t data_len
     return PICONET_TX_RESULT_OK;
 }
 
-void check_reply_timeout(void) {
-    if (_pending_reply.valid && (time_ms() < _pending_reply.expiry)) {
-        return;
-    }
-
-    // client failed to reply in time - stop idle flag to avoid jamming network
-    _pending_reply.valid = false;
-    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
-}
-
 econet_rx_result_t receive() {
     if (!_initialised) {
         return _rx_result_for_error(ECONET_RX_ERROR_UNINITIALISED);
     }
+
+    _check_reply_timeout();
 
     econet_rx_result_t result;
     result.type = PICONET_RX_RESULT_NONE;
@@ -425,17 +419,23 @@ static tFrameWriteStatus _tx_frame(uint8_t* buffer, size_t len) {
     return FRAME_WRITE_OK;
 }
 
-static tFrameWriteStatus _send_ack(t_frame_parse_result* incoming_frame) {
+static tFrameWriteStatus _send_ack(t_frame_parse_result* incoming_frame, const uint8_t* extra_data, size_t extra_data_len) {
     adlc_write_cr2(CR2_RTS_CONTROL | CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE);
     adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET | CR1_RX_FRAME_DISCONTINUE | CR1_TIE);
 
-    uint8_t ack_frame[4];
-    ack_frame[0] = incoming_frame->frame.src_station;
-    ack_frame[1] = incoming_frame->frame.src_net;
-    ack_frame[2] = incoming_frame->frame.dest_station;
-    ack_frame[3] = incoming_frame->frame.dest_net;
+    size_t frame_len = 4 + extra_data_len;
+    if ( frame_len > _ack_buffer_sz) {
+        return FRAME_WRITE_OVERFLOW;
+    }
 
-    return _tx_frame(ack_frame, 4);
+    _ack_buffer[0] = incoming_frame->frame.src_station;
+    _ack_buffer[1] = incoming_frame->frame.src_net;
+    _ack_buffer[2] = incoming_frame->frame.dest_station;
+    _ack_buffer[3] = incoming_frame->frame.dest_net;
+
+    memcpy(_ack_buffer + 4, extra_data, extra_data_len);
+
+    return _tx_frame(_ack_buffer, frame_len);
 }
 
 static bool _wait_frame_start(uint32_t timeout_ms) {
@@ -510,7 +510,7 @@ static bool _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_sta
 
 static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) {
     frame_type_t frame_type = scout_frame->type;
-    tFrameWriteStatus scout_ack_result = _send_ack(scout_frame);
+    tFrameWriteStatus scout_ack_result = _send_ack(scout_frame, NULL, 0);
     if (scout_ack_result != FRAME_WRITE_OK) {
         printf("[_rx_data_for_scout] scout ack failed code=%u\n", scout_ack_result);
         return _rx_result_for_error(ECONET_RX_ERROR_SCOUT_ACK);
@@ -529,24 +529,27 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
             break;
         }
 
+        printf("ERROR [_rx_data_for_scout] read frame failed code=%u", data_frame_result.status);
+        // TODO: I wonder if this gets called coz we don't check status below
         _abort_read();
     }
 
+    // TODO YOU ARE HERE: getting length 6 but can see rest of it in debugger!
     t_frame_parse_result data_frame = _parse_frame(_rx_data_buffer, data_frame_result.bytes_read, false);
     if (data_frame.type != FRAME_TYPE_DATA) {
-        printf("[_rx_data_for_scout] parse failed type=%u len=%u - aborting", data_frame.type, data_frame_result.bytes_read);
+        printf("ERROR [_rx_data_for_scout] parse failed type=%u len=%u - aborting\n", data_frame.type, data_frame_result.bytes_read);
         _abort_read();
         return _rx_result_for_error(PICONET_RX_RESULT_ERROR);
     }
 
-    tFrameWriteStatus data_ack_result = _send_ack(&data_frame);
+    tFrameWriteStatus data_ack_result = _send_ack(&data_frame, NULL, 0);
     if (data_ack_result != FRAME_WRITE_OK) {
-        printf("[_rx_data_for_scout] data ack failed code=%u\n", data_ack_result);
+        printf("ERROR [_rx_data_for_scout] data ack failed code=%u\n", data_ack_result);
         return _rx_result_for_error(ECONET_RX_ERROR_DATA_ACK);
     }
 
     econet_rx_result_t result;
-    result.type = frame_type;
+    result.type = PICONET_RX_RESULT_TRANSMIT;
     result.detail.scout = scout_frame->frame.frame;
     result.detail.scout_len = scout_frame->frame.frame_len;
     result.detail.data = data_frame.frame.frame;
@@ -556,6 +559,26 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
 }
 
 static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediate_scout_frame) {
+    if (immediate_scout_frame->frame.ctrl == 0x88) {
+        uint8_t ack_extra_data[4];
+        ack_extra_data[0] = 0x05;
+        ack_extra_data[1] = 0x00;
+        ack_extra_data[2] = 0x25;
+        ack_extra_data[3] = 0x04;
+
+        tFrameWriteStatus scout_ack_result = _send_ack(immediate_scout_frame, ack_extra_data, sizeof(ack_extra_data));
+        if (scout_ack_result != FRAME_WRITE_OK) {
+            printf("[_handle_immediate_scout] scout ack failed code=%u\n", scout_ack_result);
+            return _rx_result_for_error(ECONET_RX_ERROR_SCOUT_ACK);
+        }
+
+        _abort_read(); // TODO: is this needed?
+
+        econet_rx_result_t result;
+        result.type = PICONET_RX_RESULT_NONE;
+        return result;
+    }
+
     return _rx_data_for_scout(immediate_scout_frame);
 }
 
@@ -563,16 +586,18 @@ static econet_rx_result_t _handle_transmit_scout(t_frame_parse_result* transmit_
     econet_rx_result_t result = _rx_data_for_scout(transmit_scout_frame);
     if (result.type == PICONET_RX_RESULT_TRANSMIT) {
         // set idle flag while we wait a reply
-        adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE);
+        // adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_FLAG_IDLE | CR2_PRIO_STATUS_ENABLE);
 
-        _pending_reply.reply_id++;
-        _pending_reply.expiry = time_ms() + 250; // TODO constant
-        _pending_reply.station = transmit_scout_frame->frame.src_station;
-        _pending_reply.net = transmit_scout_frame->frame.src_net;
-        _pending_reply.valid = true;
+        // _pending_reply.reply_id++;
+        // _pending_reply.expiry = time_ms() + 250; // TODO constant
+        // _pending_reply.station = transmit_scout_frame->frame.src_station;
+        // _pending_reply.net = transmit_scout_frame->frame.src_net;
+        // _pending_reply.valid = true;
 
-        result.detail.needs_reply = true;
-        result.detail.reply_id = _pending_reply.reply_id;
+        // result.detail.needs_reply = true;
+        // result.detail.reply_id = _pending_reply.reply_id;
+    } else {
+        printf("ERROR [_handle_transmit_scout] unexpected result type=%u\n", result.type);
     }
 
     return result;
@@ -592,6 +617,7 @@ static econet_rx_result_t _handle_first_frame() {
     t_frame_read_result read_frame_result = _read_frame(_rx_scout_buffer, _rx_scout_buffer_sz, _listen_addresses, sizeof(_listen_addresses), 2000);
 
     if (read_frame_result.status != FRAME_READ_OK) {
+        printf("[_handle_first_frame] read failed code=%u - aborting", read_frame_result.status);
         _clear_rx();
         return _map_read_frame_result(read_frame_result.status);
     }
@@ -684,6 +710,16 @@ static t_frame_read_result _read_frame(uint8_t* buffer, size_t buffer_len, uint8
 
     result.status = FRAME_READ_OK;
     return result;
+}
+
+static void _check_reply_timeout(void) {
+    if (_pending_reply.valid && (time_ms() < _pending_reply.expiry)) {
+        return;
+    }
+
+    // client failed to reply in time - stop idle flag to avoid jamming network
+    _pending_reply.valid = false;
+    adlc_write_cr2(CR2_CLEAR_TX_STATUS | CR2_CLEAR_RX_STATUS | CR2_PRIO_STATUS_ENABLE);
 }
 
 static econet_rx_result_t _map_read_frame_result(t_frame_read_status status) {

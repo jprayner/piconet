@@ -307,11 +307,13 @@ void _core1_loop(void) {
 
         event.type = PICONET_RX_EVENT;
         event.rx_event_detail.type = rx_result.type;
-        event.rx_event_detail.reply_id = rx_result.detail.reply_id;
 
         if (rx_result.type == PICONET_RX_RESULT_ERROR) {
             event.rx_event_detail.error = rx_result.error;
         } else {
+            event.rx_event_detail.reply_id = (rx_result.type == PICONET_RX_RESULT_TRANSMIT)
+                ? rx_result.detail.reply_id
+                : 0;
             event.rx_event_detail.scout_len = rx_result.detail.scout_len;   // scout itself populated by econet module
             event.rx_event_detail.data_len = rx_result.detail.data_len;     // data itself populated by econet module
         }

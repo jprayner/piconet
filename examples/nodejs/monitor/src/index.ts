@@ -7,7 +7,6 @@ async function main() {
   await driver.connect();
 
   driver.addListener((event) => {
-    console.log(event);
     if (event.type === 'ErrorEvent') {
       console.log('========================');
       console.log(`ERROR: ${event.description}`);
@@ -39,8 +38,8 @@ const logFrame = (event: EconetEvent) => {
   const hasAnyFrame = hasScoutAndDataFrames || hasEconetFrame;
   if (hasAnyFrame) {
     const frameForHeader = hasScoutAndDataFrames ? event.scoutFrame : event.econetFrame;
-    const fromStation = frameForHeader[0];
-    const toStation = frameForHeader[2];
+    const toStation = frameForHeader[0];
+    const fromStation = frameForHeader[2];
     console.log(`${event.type.toUpperCase()} ${fromStation} --> ${toStation}`);
     if (hasEconetFrame) {
       console.log('        ' + hexdump(event.econetFrame).join('\n        '));
