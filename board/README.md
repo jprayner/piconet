@@ -4,7 +4,7 @@ This directory contains the firmware for Piconet which comprises ANSI C code for
 
 ## Schematic
 
-![Schematic_piconet_rev_0.1.1](https://user-images.githubusercontent.com/909745/218156409-7d91a130-aabf-414b-9778-3b987eb7f207.png)
+![Schematic_piconet_2023-02-15](https://user-images.githubusercontent.com/909745/219204768-f511ca68-83ad-4179-b935-38036b83f05f.png)
 
 ## Operation
 
