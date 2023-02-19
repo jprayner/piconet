@@ -11,6 +11,7 @@ add_executable(piconet
     econet.c
     adlc.c
     util.c
+    buffer_pool.c
     lib/b64/cdecode.c
     lib/b64/cencode.c
 )
