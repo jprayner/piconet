@@ -5,9 +5,10 @@
 #include "pico/mutex.h"
 
 typedef struct {
-  uint      id;
+  uint      handle;
   bool      in_use;
   uint8_t*  data;
+  size_t    size;
 } buffer_t;
 
 typedef struct {
@@ -21,7 +22,7 @@ bool      pool_init(pool_t *p, size_t buffer_size, uint buffer_count);
 void      pool_destroy(pool_t *p);
 
 buffer_t* pool_buffer_claim(pool_t *p);
-void      pool_buffer_release(pool_t *p, uint buffer_id);
-buffer_t* pool_buffer_get(pool_t *p, uint buffer_id);
+void      pool_buffer_release(pool_t *p, uint buffer_handle);
+buffer_t* pool_buffer_get(pool_t *p, uint buffer_handle);
 
 #endif

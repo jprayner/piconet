@@ -56,17 +56,7 @@ typedef struct
     };
 } econet_rx_result_t;
 
-bool                    econet_init(
-                            uint8_t*        tx_scout_buffer,
-                            size_t          tx_scout_buffer_sz,
-                            uint8_t*        tx_data_buffer,
-                            size_t          tx_data_buffer_sz,
-                            uint8_t*        rx_scout_buffer,
-                            size_t          rx_scout_buffer_sz,
-                            uint8_t*        rx_data_buffer,
-                            size_t          rx_data_buffer_sz,
-                            uint8_t*        ack_buffer,
-                            size_t          ack_buffer_sz);
+bool                    econet_init(void);
 econet_tx_result_t      broadcast(
                             const uint8_t*  buff,
                             size_t          bytes);
@@ -88,5 +78,10 @@ void                    check_reply_timeout(void);
 econet_rx_result_t      monitor();
 uint8_t                 get_station();
 void                    set_station(uint8_t station);
+void                    set_tx_scout_buffer(uint8_t* tx_scout_buffer, size_t tx_scout_buffer_sz);
+void                    set_tx_data_buffer(uint8_t* tx_data_buffer, size_t tx_data_buffer_sz);
+void                    set_rx_scout_buffer(uint8_t* rx_scout_buffer, size_t rx_scout_buffer_sz);
+void                    set_rx_data_buffer(uint8_t* rx_data_buffer, size_t rx_data_buffer_sz);
+void                    set_ack_buffer(uint8_t* ack_buffer, size_t ack_buffer_sz);
 
 #endif

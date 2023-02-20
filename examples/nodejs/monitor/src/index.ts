@@ -20,7 +20,7 @@ async function main() {
 
   console.log('Listening for traffic...');
 
-  await sleep(10000);
+  await sleep(60000);
   // process.on('SIGINT', async () => {
   console.log('Disconnecting from board...');
   await driver.close();

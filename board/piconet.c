@@ -11,21 +11,26 @@
 #include "econet.h"
 #include "adlc.h"
 #include "util.h"
+#include "buffer_pool.h"
 #include "./lib/b64/cencode.h"
 #include "./lib/b64/cdecode.h"
-
-#define TX_DATA_BUFFER_SZ       3500
-#define RX_DATA_BUFFER_SZ       3500
-#define TX_SCOUT_BUFFER_SZ      32
-#define RX_SCOUT_BUFFER_SZ      32
-#define ACK_BUFFER_SZ           32
-#define B64_BUFFER_SZ           RX_DATA_BUFFER_SZ * 2
-#define CMD_BUFFER_SZ           TX_DATA_BUFFER_SZ * 2
 
 #define VERSION_MAJOR           0
 #define VERSION_MINOR           2
 #define VERSION_REV             1
 #define VERSION_STR_MAXLEN      16
+
+#define TX_DATA_BUFFER_SZ       3500
+#define RX_DATA_BUFFER_SZ       16536                       // TODO: make this dynamic
+#define TX_SCOUT_BUFFER_SZ      32
+#define RX_SCOUT_BUFFER_SZ      32
+#define ACK_BUFFER_SZ           32
+#define B64_SCOUT_BUFFER_SZ     RX_SCOUT_BUFFER_SZ * 2
+#define B64_DATA_BUFFER_SZ      RX_DATA_BUFFER_SZ * 2
+#define CMD_BUFFER_SZ           TX_DATA_BUFFER_SZ * 2
+
+#define QUEUE_SZ_CMD            1
+#define QUEUE_SZ_EVENT          6                           // TODO: make this dynamic
 
 #define CMD_STATUS              "STATUS"
 #define CMD_RESTART             "RESTART"
@@ -56,7 +61,7 @@ typedef struct {
     econet_rx_error_t       error;
     uint8_t                 scout[RX_SCOUT_BUFFER_SZ];
     size_t                  scout_len;
-    uint8_t                 data[RX_DATA_BUFFER_SZ];
+    uint                    data_buffer_handle;
     size_t                  data_len;
     uint16_t                reply_id;
 } econet_rx_event_t;
@@ -119,11 +124,12 @@ typedef struct {
     };
 } command_t;
 
-queue_t command_queue;
-queue_t event_queue;
-command_t cmd;
-char* b64_scout_buffer;
-char* b64_data_buffer;
+queue_t     command_queue;
+queue_t     event_queue;
+command_t   cmd;
+char*       b64_scout_buffer;
+char*       b64_data_buffer;
+pool_t      rx_buffer_pool;
 
 void    _core0_loop(void);
 void    _core1_loop(void);
@@ -136,24 +142,25 @@ size_t  _decode_base64(const char* input, char* output_buffer);
 int main() {
     stdio_init_all();
 
-    sleep_ms(2000); // give client a chance to reconnect
-    printf("Piconet v.%d.%d.%d\n", VERSION_MAJOR, VERSION_MINOR, VERSION_REV);
+    if (!pool_init(&rx_buffer_pool, RX_DATA_BUFFER_SZ, QUEUE_SZ_EVENT)) {
+        printf("ERROR Failed to allocate memory for RX data buffers");
+        return 1;
+    }
 
-    // TODO: scout buffer could be smaller
-    b64_scout_buffer = malloc(B64_BUFFER_SZ);
+    b64_scout_buffer = malloc(B64_SCOUT_BUFFER_SZ);
     if (b64_scout_buffer == NULL) {
         printf("ERROR Failed to allocate memory for base64 scout buffer");
         return 1;
     }
 
-    b64_data_buffer = malloc(B64_BUFFER_SZ);
+    b64_data_buffer = malloc(B64_DATA_BUFFER_SZ);
     if (b64_data_buffer == NULL) {
         printf("ERROR Failed to allocate memory for base64 data buffer");
         return 1;
     }
 
-    queue_init(&command_queue, sizeof(command_t), 1);
-    queue_init(&event_queue, sizeof(event_t), 8);
+    queue_init(&command_queue, sizeof(command_t), QUEUE_SZ_CMD);
+    queue_init(&event_queue, sizeof(event_t), QUEUE_SZ_EVENT);
     multicore_launch_core1(_core1_loop);
 
     _core0_loop();
@@ -189,30 +196,61 @@ void _core0_loop(void) {
             }
 
             case PICONET_RX_EVENT: {
+                if (event.rx_event_detail.type == PICONET_RX_RESULT_ERROR) {
+                    printf("ERROR %s\n", _rx_error_to_str(event.rx_event_detail.error));
+                    break;
+                }
+
+                buffer_t* buffer = pool_buffer_get(&rx_buffer_pool, event.rx_event_detail.data_buffer_handle);
+                if (buffer == NULL) {
+                    printf("ERROR Failed to get RX data buffer - logic error\n");
+                    break;
+                }
+
                 switch (event.rx_event_detail.type) {
-                    case PICONET_RX_RESULT_ERROR :
-                        printf("ERROR %s\n", _rx_error_to_str(event.rx_event_detail.error));
-                        break;
                     case PICONET_RX_RESULT_MONITOR :
-                        printf("MONITOR %s\n", _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        printf("MONITOR %s\n", _encode_base64(
+                            b64_data_buffer,
+                            buffer->data,
+                            event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_BROADCAST :
-                        printf("RX_BROADCAST %s\n", _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                        printf("RX_BROADCAST %s\n", _encode_base64(
+                            b64_data_buffer,
+                            buffer->data,
+                            event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_IMMEDIATE_OP :
                         printf(
                             "RX_IMMEDIATE %s %s\n",
-                            _encode_base64(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
-                            _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                            _encode_base64(
+                                b64_scout_buffer,
+                                event.rx_event_detail.scout,
+                                event.rx_event_detail.scout_len),
+                            _encode_base64(
+                                b64_data_buffer,
+                                buffer->data,
+                                event.rx_event_detail.data_len));
                         break;
                     case PICONET_RX_RESULT_TRANSMIT :
                         printf(
                             "RX_TRANSMIT %u %s %s\n",
                             event.rx_event_detail.reply_id,
-                            _encode_base64(b64_scout_buffer, event.rx_event_detail.scout, event.rx_event_detail.scout_len),
-                            _encode_base64(b64_data_buffer, event.rx_event_detail.data, event.rx_event_detail.data_len));
+                            _encode_base64(
+                                b64_scout_buffer,
+                                event.rx_event_detail.scout,
+                                event.rx_event_detail.scout_len),
+                            _encode_base64(
+                                b64_data_buffer,
+                                buffer->data,
+                                event.rx_event_detail.data_len));
                         break;
                 }
+
+                pool_buffer_release(
+                    &rx_buffer_pool,
+                    event.rx_event_detail.data_buffer_handle);
+
                 break;
             }
 
@@ -232,20 +270,15 @@ void _core1_loop(void) {
     uint8_t         ack_buffer[ACK_BUFFER_SZ];
     piconet_mode_t  mode = PICONET_CMD_SET_MODE_STOP;
 
-    if (!econet_init(
-            scout_buffer,
-            TX_SCOUT_BUFFER_SZ,
-            tx_buffer,
-            TX_DATA_BUFFER_SZ,
-            event.rx_event_detail.scout,
-            RX_SCOUT_BUFFER_SZ,
-            event.rx_event_detail.data,
-            RX_DATA_BUFFER_SZ,
-            ack_buffer,
-            ACK_BUFFER_SZ)) {
+    if (!econet_init()) {
         printf("ERROR Failed to init econet module. Game over, man.\n");
         return;
     }
+
+    set_tx_scout_buffer(scout_buffer, TX_SCOUT_BUFFER_SZ);
+    set_tx_data_buffer(tx_buffer, TX_DATA_BUFFER_SZ);
+    set_rx_scout_buffer(event.rx_event_detail.scout, RX_SCOUT_BUFFER_SZ);
+    set_ack_buffer(ack_buffer, ACK_BUFFER_SZ);
 
     while (true) {
         if (queue_try_remove(&command_queue, &received_command)) {
@@ -299,26 +332,35 @@ void _core1_loop(void) {
             continue;
         }
 
-        econet_rx_result_t rx_result = (mode == PICONET_CMD_SET_MODE_MONITOR) ? monitor() : receive();
-
-        if (rx_result.type == PICONET_RX_RESULT_NONE) {
+        buffer_t* rx_data_buffer = pool_buffer_claim(&rx_buffer_pool);
+        if (rx_data_buffer == NULL) {
+            printf("ERROR Packet rate too high, rx buffers exhausted. Increase buffer count/reduce buffer size.\n");
             continue;
         }
+        set_rx_data_buffer(rx_data_buffer->data, rx_data_buffer->size);
 
-        event.type = PICONET_RX_EVENT;
-        event.rx_event_detail.type = rx_result.type;
+        econet_rx_result_t rx_result = (mode == PICONET_CMD_SET_MODE_MONITOR) ? monitor() : receive();
 
-        if (rx_result.type == PICONET_RX_RESULT_ERROR) {
-            event.rx_event_detail.error = rx_result.error;
-        } else {
-            event.rx_event_detail.reply_id = (rx_result.type == PICONET_RX_RESULT_TRANSMIT)
-                ? rx_result.detail.reply_id
-                : 0;
-            event.rx_event_detail.scout_len = rx_result.detail.scout_len;   // scout itself populated by econet module
-            event.rx_event_detail.data_len = rx_result.detail.data_len;     // data itself populated by econet module
+        switch (rx_result.type) {
+            case PICONET_RX_RESULT_NONE:
+                pool_buffer_release(&rx_buffer_pool, rx_data_buffer->handle);
+                break;
+            case PICONET_RX_RESULT_ERROR:
+                event.type = PICONET_RX_EVENT;
+                event.rx_event_detail.type = rx_result.type;
+                event.rx_event_detail.error = rx_result.error;
+                queue_add_blocking(&event_queue, &event);
+                pool_buffer_release(&rx_buffer_pool, rx_data_buffer->handle);
+                break;
+            default:
+                event.type = PICONET_RX_EVENT;
+                event.rx_event_detail.type = rx_result.type;
+                event.rx_event_detail.scout_len = rx_result.detail.scout_len;       // scout itself populated by econet module
+                event.rx_event_detail.data_len = rx_result.detail.data_len;
+                event.rx_event_detail.data_buffer_handle = rx_data_buffer->handle;
+                queue_add_blocking(&event_queue, &event);
+                break;
         }
-
-        queue_add_blocking(&event_queue, &event);
     }
 }
 

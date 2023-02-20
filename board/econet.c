@@ -101,34 +101,13 @@ static size_t   _tx_data_buffer_sz;
 static uint8_t* _ack_buffer;
 static size_t   _ack_buffer_sz;
 
-bool econet_init(
-        uint8_t*    tx_scout_buffer,
-        size_t      tx_scout_buffer_sz,
-        uint8_t*    tx_data_buffer,
-        size_t      tx_data_buffer_sz,
-        uint8_t*    rx_scout_buffer,
-        size_t      rx_scout_buffer_sz,
-        uint8_t*    rx_data_buffer,
-        size_t      rx_data_buffer_sz,
-        uint8_t*    ack_buffer,
-        size_t      ack_buffer_sz) {
+bool econet_init(void) {
     if (_initialised) {
         return false;
     }
 
     adlc_init();
     adlc_irq_reset();
-
-    _tx_scout_buffer = tx_scout_buffer;
-    _tx_scout_buffer_sz = tx_scout_buffer_sz;
-    _tx_data_buffer = tx_data_buffer;
-    _tx_data_buffer_sz = tx_data_buffer_sz;
-    _rx_scout_buffer = rx_scout_buffer;
-    _rx_scout_buffer_sz = rx_scout_buffer_sz;
-    _rx_data_buffer = rx_data_buffer;
-    _rx_data_buffer_sz = rx_data_buffer_sz;
-    _ack_buffer = ack_buffer;
-    _ack_buffer_sz = ack_buffer_sz;
 
     _initialised = true;
 
@@ -296,6 +275,41 @@ uint8_t get_station() {
 
 void set_station(uint8_t station) {
     _listen_addresses[0] = station;
+}
+
+void set_tx_scout_buffer(
+        uint8_t*    tx_scout_buffer,
+        size_t      tx_scout_buffer_sz) {
+    _tx_scout_buffer    = tx_scout_buffer;
+    _tx_scout_buffer_sz = tx_scout_buffer_sz;
+}
+
+void set_tx_data_buffer(
+        uint8_t*    tx_data_buffer,
+        size_t      tx_data_buffer_sz) {
+    _tx_data_buffer     = tx_data_buffer;
+    _tx_data_buffer_sz  = tx_data_buffer_sz;
+}
+
+void set_rx_scout_buffer(
+        uint8_t*    rx_scout_buffer,
+        size_t      rx_scout_buffer_sz) {
+    _rx_scout_buffer    = rx_scout_buffer;
+    _rx_scout_buffer_sz = rx_scout_buffer_sz;
+}
+
+void set_rx_data_buffer(
+        uint8_t*    rx_data_buffer,
+        size_t      rx_data_buffer_sz) {
+    _rx_data_buffer     = rx_data_buffer;
+    _rx_data_buffer_sz  = rx_data_buffer_sz;
+}
+
+void set_ack_buffer(
+        uint8_t*    ack_buffer,
+        size_t      ack_buffer_sz) {
+    _ack_buffer = ack_buffer;
+    _ack_buffer_sz = ack_buffer_sz;
 }
 
 static t_frame_parse_result _parse_frame(uint8_t* buffer, size_t len, bool is_opening_frame) {
@@ -520,6 +534,7 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
     while (true) {
         adlc_irq_reset();
 
+        // TODO: need a constant here
         if (!_wait_frame_start(200)) {
             return _rx_result_for_error(ECONET_RX_ERROR_TIMEOUT);
         }
@@ -624,6 +639,11 @@ static econet_rx_result_t _handle_first_frame() {
 
     t_frame_parse_result result = _parse_frame(_rx_scout_buffer, read_frame_result.bytes_read, true);
     switch (result.type) {
+        // TODO: You are here
+        /*
+            Transmit will require a single buffer at a time (may be large, who knows)
+            Immediate will require 
+        */
         case FRAME_TYPE_TRANSMIT :
             return _handle_transmit_scout(&result);
         case FRAME_TYPE_IMMEDIATE :
