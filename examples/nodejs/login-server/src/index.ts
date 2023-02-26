@@ -3,6 +3,19 @@ import { hexdump } from '@gct256/hexdump';
 import { EconetEvent } from '@jprayner/piconet-nodejs/dist/types/driver';
 import { RxTransmitEvent } from '@jprayner/piconet-nodejs/dist/types/types/rxTransmitEvent';
 
+type txHeader = {
+  replyPort: number,
+  functionCode: number,
+  handleUserRootDir: number,
+  handleCurrentDir: number,
+  handleLibDir: number,
+};
+
+type rxHeader = {
+  commandCode: number,
+  returnCode: number,
+};
+
 async function main() {
   console.log('Connecting to board...');
   await driver.connect();
@@ -86,12 +99,9 @@ const handleReceive = async (event: RxTransmitEvent) => {
 
   const replyPort = data[0];
   const command = data.subarray(5);
-  console.log(`Received replyport=${replyPort}, command="${command.toString('ascii')}"`);
-  //await driver.reply(event.receiveId, Buffer.from([]));
+  console.log(`Received command="${command.toString('ascii')}"`);
 
   await driver.transmit(scout.fromStation, scout.fromNetwork, 0x80, replyPort, Buffer.from([0x05, 0x00, 0x01, 0x02, 0x04, 0x00]));
-  //driver.reply(event.receiveId, )
-  //event.receiveId
 };
 
 const logFrame = (event: EconetEvent) => {

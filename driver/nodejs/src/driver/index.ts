@@ -1,3 +1,4 @@
+import { hexdump } from '@gct256/hexdump';
 import config from '../config';
 import { StatusEvent } from '../types/statusEvent';
 import { parseStatusEvent } from '../parser/statusParser';
@@ -18,7 +19,7 @@ import { parseRxTransmitEvent } from '../parser/rxTransmitParser';
 import { ReplyResultEvent } from '../types/replyResultEvent';
 import { parseReplyResultEvent } from '../parser/replyResultParser';
 
-export enum ConnectionState {
+enum ConnectionState {
   Disconnected = 'Disconnected',
   Connecting = 'Connecting',
   Connected = 'Connected',
@@ -35,8 +36,15 @@ export type EconetEvent =
   | RxBroadcastEvent
   | TxResultEvent
   | ReplyResultEvent;
+
+export type RxDataEvent =
+  | MonitorEvent
+  | RxTransmitEvent
+  | RxImmediateEvent
+  | RxBroadcastEvent;
+
 export type Listener = (event: EconetEvent) => void;
-type EventMatcher = (event: EconetEvent) => boolean;
+export type EventMatcher = (event: EconetEvent) => boolean;
 
 const parsers = [
   parseStatusEvent,
@@ -226,6 +234,54 @@ export const fireListeners = (event: EconetEvent) => {
   listeners.forEach(listener => listener(event));
 };
 
+export const waitForEvent = async (
+  matcher: EventMatcher,
+  timeoutMs: number,
+): Promise<EconetEvent> => {
+  return new Promise((resolve, reject) => {
+    // eslint-disable-next-line prefer-const
+    let listener: Listener;
+
+    const timer = setTimeout(() => {
+      if (listener) {
+        removeListener(listener);
+      }
+      reject(new Error(`No matching event found within ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    listener = (event: EconetEvent) => {
+      if (!matcher(event)) {
+        return;
+      }
+
+      removeListener(listener);
+      clearTimeout(timer);
+      resolve(event);
+    };
+    addListener(listener);
+  });
+};
+
+export const rxDataEventToString = (event: RxDataEvent) => {
+  const hasScoutAndDataFrames = event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
+  const hasEconetFrame = event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
+  const frameForHeader = hasScoutAndDataFrames ? event.scoutFrame : event.econetFrame;
+  const toStation = frameForHeader[0];
+  const fromStation = frameForHeader[2];
+  const title = `${event.type} ${fromStation} --> ${toStation}\n`;
+  if (hasEconetFrame) {
+    return title
+      + '        '
+      + hexdump(event.econetFrame).join('\n        ');
+  } else {
+    return title
+      + '        '
+      + hexdump(event.scoutFrame).join('\n        ') + ' [SCOUT]\n'
+      + hexdump(event.dataFrame).join('\n        ');
+  }
+};
+
+
 const handleData = (data: string) => {
   if (
     state !== ConnectionState.Connected &&
@@ -257,30 +313,3 @@ const readStatus = async (): Promise<StatusEvent> => {
   return result as StatusEvent;
 };
 
-const waitForEvent = async (
-  matcher: EventMatcher,
-  timeoutMs: number,
-): Promise<EconetEvent> => {
-  return new Promise((resolve, reject) => {
-    // eslint-disable-next-line prefer-const
-    let listener: Listener;
-
-    const timer = setTimeout(() => {
-      if (listener) {
-        removeListener(listener);
-      }
-      reject(new Error(`No matching event found within ${timeoutMs}ms`));
-    }, timeoutMs);
-
-    listener = (event: EconetEvent) => {
-      if (!matcher(event)) {
-        return;
-      }
-
-      removeListener(listener);
-      clearTimeout(timer);
-      resolve(event);
-    };
-    addListener(listener);
-  });
-};

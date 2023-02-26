@@ -1,0 +1,25 @@
+{
+  "name": "ecoclient",
+  "version": "1.0.0",
+  "description": "An example of how to perform basic Econet fileserver client operations.",
+  "bin": {
+    "ecoclient": "index.js"
+  },
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "npm run build && node build/index.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "James Rayner",
+  "license": "MIT",
+  "devDependencies": {
+    "@gct256/hexdump": "^0.1.2",
+    "@types/node": "^16.18.12",
+    "typescript": "^4.9.5"
+  },
+  "dependencies": {
+    "@jprayner/piconet-nodejs": "^0.2.1",
+    "commander": "^10.0.0"
+  }
+}

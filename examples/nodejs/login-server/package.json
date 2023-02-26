@@ -1,7 +1,7 @@
 {
-  "name": "notify",
+  "name": "login-server",
   "version": "1.0.0",
-  "description": "Sends a message to a station on an Econet network using the Piconet interface.",
+  "description": "A dummy Econet server which handles the `*I AM ${username} ${password}` command",
   "main": "index.js",
   "scripts": {
     "build": "tsc",
@@ -11,6 +11,7 @@
   "author": "James Rayner",
   "license": "MIT",
   "devDependencies": {
+    "@gct256/hexdump": "^0.1.2",
     "@types/node": "^16.18.12",
     "typescript": "^4.9.5"
   },
