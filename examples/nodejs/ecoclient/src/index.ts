@@ -128,7 +128,7 @@ const getFile = async (serverStation: number, filename: string) => {
   );
 
   if (txResult.result !== 'OK') {
-    throw new Error(`Failed to send I AM command to station ${serverStation}`);
+    throw new Error(`Failed to send LOAD command to station ${serverStation}`);
   }
 
   const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
@@ -173,6 +173,8 @@ const getFile = async (serverStation: number, filename: string) => {
     data = Buffer.concat([data, dataOrEndEvent.data]);
   };
 
+  // TODO: handle timeout
+
   return {
     loadAddr,
     execAddr,
@@ -185,7 +187,133 @@ const getFile = async (serverStation: number, filename: string) => {
   };
 };
 
+const putFile = async (serverStation: number, filename: string) => {
+  const loadTimeoutMs = 10000;
+  const controlByte = 0x80;
+  const port = 0x99;
+
+  const replyPort = 0x90;
+  const ackPort = 0x91; // different
+  const functionCode = 0x01; // different
+  const handleUserRootDir = 0x01;
+  const handleCurrentDir = 0x02;
+  const handleLibDir = 0x04;
+
+  const loadAddr = 0xffff0e00;
+  const execAddr = 0xffff2b80;
+  const fileData = fs.readFileSync(filename);
+  const fileTitle = `${filename}\r`;
+
+  const bufferLoadAddr = Buffer.from([
+    loadAddr & 0xff,
+    (loadAddr >> 8) & 0xff,
+    (loadAddr >> 16) & 0xff,
+    (loadAddr >> 24) & 0xff,
+  ]);
+  const bufferExecAddr = Buffer.from([
+    loadAddr & 0xff,
+    (loadAddr >> 8) & 0xff,
+    (loadAddr >> 16) & 0xff,
+    (loadAddr >> 24) & 0xff,
+  ]);
+  const bufferFileSize = Buffer.from([
+    fileData.length & 0xff,
+    (fileData.length >> 8) & 0xff,
+    (fileData.length >> 16) & 0xff
+  ]);
+  const bufferFileTitle = Buffer.from(fileTitle);
+
+  const requestData = Buffer.concat([
+    bufferLoadAddr,
+    bufferExecAddr,
+    bufferFileSize,
+    bufferFileTitle,
+  ]);
+
+  const msg = standardTxMessage(
+    replyPort,
+    functionCode,
+    ackPort,
+    handleCurrentDir,
+    handleLibDir,
+    requestData
+  );
+
+  console.log(`sending msg: ${hexdump(msg)}`);
+
+  const txResult = await driver.transmit(
+    serverStation,
+    0,
+    controlByte,
+    port,
+    msg
+  );
+
+  if (txResult.result !== 'OK') {
+    throw new Error(`Failed to send SAVE command to station ${serverStation}`);
+  }
+
+  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
+
+  if (serverReply.resultCode !== 0x00) {
+    const message = stripCRs(serverReply.data.toString('ascii'));
+    throw new Error(`Save failed: ${message}`);
+  }
+
+  if (serverReply.data.length < 3) {
+    throw new Error(`Malformed response in SAVE from station ${serverStation}: success but not enough data`);
+  }
+
+  const dataPort = serverReply.data[0];
+  const blockSize = serverReply.data.readUInt16LE(1);
+
+  console.log(`dataPort: ${dataPort} blockSize: ${blockSize}`);
+
+  const startTime = Date.now();
+  let dataLeftToSend = Buffer.from(fileData);
+  while (dataLeftToSend.length > 0 && (Date.now() - startTime < loadTimeoutMs)) {
+    const dataToSend = dataLeftToSend.slice(0, blockSize);
+    dataLeftToSend = dataLeftToSend.slice(blockSize);
+
+    const dataTxResult = await driver.transmit(
+      serverStation,
+      0,
+      controlByte,
+      dataPort,
+      dataToSend
+    );
+
+    if (dataTxResult.result !== 'OK') {
+      throw new Error(`Failed to send SAVE data to station ${serverStation}`);
+    }
+
+    if (dataLeftToSend.length > 0) {
+      waitForAckEvent(serverStation, ackPort);
+    }
+  }
+
+  const finalReply = await waitForSaveStatus(serverStation, controlByte, replyPort);
+
+  if (finalReply.resultCode !== 0x00) {
+//    const message = stripCRs(serverReply.data.toString('ascii'));
+    throw new Error(`Save failed`);
+  }
+  console.log('Save succeeded');
+};
 const stripCRs = (str: string) => str.replace(/\r/g, '');
+
+const waitForAckEvent = async (serverStation: number, port: number) => {
+  return await driver.waitForEvent(
+    (event: EconetEvent) => {
+      const result = event.type === 'RxTransmitEvent'
+        && event.scoutFrame.length >= 6
+        && event.scoutFrame[2] === serverStation
+        && event.scoutFrame[3] === 0
+        && event.scoutFrame[6] === port;
+      return result;
+    },
+    2000);
+}
 
 const waitForReceiveTxEvent = async (serverStation: number, controlByte: number, ports: number[]) => {
   const rxTransmitEvent = await driver.waitForEvent(
@@ -203,6 +331,25 @@ const waitForReceiveTxEvent = async (serverStation: number, controlByte: number,
     commandCode: rxTransmitEvent.dataFrame[4],
     resultCode: rxTransmitEvent.dataFrame[5],
     data: rxTransmitEvent.dataFrame.slice(6),
+  }
+}
+
+const waitForSaveStatus = async (serverStation: number, controlByte: number, statusPort: number) => {
+  const rxTransmitEvent = await driver.waitForEvent(
+    responseMatcher(serverStation, 0, controlByte, [statusPort]),
+    2000);
+  if (rxTransmitEvent.type !== 'RxTransmitEvent') {
+    throw new Error(`Unexpected response from station ${serverStation}`);
+  }
+  if (rxTransmitEvent.dataFrame.length < 9) {
+    throw new Error(`Malformed response from station ${serverStation}`);
+  }
+
+  return {
+    commandCode: rxTransmitEvent.dataFrame[4],
+    resultCode: rxTransmitEvent.dataFrame[5],
+    accessByte: rxTransmitEvent.dataFrame[6],
+    date: rxTransmitEvent.dataFrame.readUint16LE(7),
   }
 }
 
@@ -282,6 +429,16 @@ const commandGet = async (filename: string, options: any) => {
   await driver.close();
 }
 
+const commandPut = async (filename: string, options: any) => {
+  const serverStation = parseInt(options.fileserver);
+
+  await initConnection(options);
+  await putFile(serverStation, filename);
+
+  console.log('Disconnecting from board...');
+  await driver.close();
+}
+
 const sleep = async (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -320,6 +477,19 @@ const main = async () => {
         .env('ECONET_FS_STATION')
       )
       .action(commandGet);
+
+    program.command('put')
+      .description('get file from fileserver using "SAVE" command')
+      .argument('<filename>', 'filename')
+      .addOption(new Option('-dev, --device <string>', 'specify PICO serial device'))
+      .addOption(new Option('-s, --station <number>', 'specify local econet station number')
+        .env('ECONET_STATION')
+      )
+      .addOption(new Option('-fs, --fileserver <number>', 'specify fileserver station number')
+        .default(254)
+        .env('ECONET_FS_STATION')
+      )
+      .action(commandPut);
 
   await program.parseAsync(process.argv);
 }
