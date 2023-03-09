@@ -1,7 +1,6 @@
 import { driver } from '@jprayner/piconet-nodejs';
 import { hexdump } from '@gct256/hexdump';
-import { EconetEvent } from '@jprayner/piconet-nodejs/dist/types/driver';
-import { RxTransmitEvent } from '@jprayner/piconet-nodejs/dist/types/types/rxTransmitEvent';
+import { EconetEvent, RxTransmitEvent } from '@jprayner/piconet-nodejs';
 
 type txHeader = {
   replyPort: number,

@@ -1,0 +1,12 @@
+dist
+.eslintrc.js
+.prettierrc.js
+coverage
+test-reports
+node_modules
+coverage
+package-lock.json
+tsconfig.json
+jest.*
+tools/*
+config/*

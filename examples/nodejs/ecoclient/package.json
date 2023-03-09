@@ -1,7 +1,7 @@
 {
-  "name": "ecoclient",
+  "name": "@jprayner/ecoclient",
   "version": "1.0.0",
-  "description": "An example of how to perform basic Econet fileserver client operations.",
+  "description": "Command-line utility for performing Econet file server operations using Piconet.",
   "bin": {
     "ecoclient": "index.js"
   },
@@ -9,17 +9,73 @@
   "scripts": {
     "build": "tsc",
     "start": "npm run build && node build/index.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "jest --no-cache --runInBand --detectOpenHandles --coverage --config=jest.config.js",
+    "lint": "prettier --check . && eslint . --ext .ts,.js",
+    "lint:fix": "prettier --write . && eslint --fix . --ext .ts,.js"
   },
+  "lint-staged": {
+    "*.{js,ts}": [
+      "prettier --write",
+      "eslint --cache --fix"
+    ],
+    "*.{css,json,md,yml,graphql}": [
+      "prettier --write"
+    ]
+  },
+  "keywords": [
+    "econet",
+    "bbc",
+    "piconet",
+    "pico",
+    "pi"
+  ],
   "author": "James Rayner",
   "license": "MIT",
+  "homepage": "https://github.com/jprayner/ecoclient",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com:jprayner/ecoclient.git"
+  },
+  "bugs": {
+    "url": "https://github.com/jprayner/ecoclient/issues"
+  },
   "devDependencies": {
-    "@gct256/hexdump": "^0.1.2",
     "@types/node": "^16.18.12",
+    "@types/jest": "^27.5.2",
+    "eslint": "^7.32.0",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-config-airbnb-typescript": "^17.0.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.25.3",
+    "eslint-plugin-jest": "^25.7.0",
+    "eslint-plugin-json-format": "^2.0.1",
+    "eslint-plugin-markdown": "^2.2.1",
+    "eslint-plugin-n": "^15.2.3",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^3.4.1",
+    "eslint-plugin-promise": "^5.2.0",
+    "eslint-plugin-yml": "^1.0.0",
+    "jest": "^27.5.1",
+    "jest-html-reporters": "^3.0.5",
+    "jest-junit": "^13.0.0",
+    "jest-mock-extended": "^2.0.9",
+    "prettier": "^2.7.1",
+    "ts-jest": "^27.1.4",
     "typescript": "^4.9.5"
   },
   "dependencies": {
+    "@gct256/hexdump": "^0.1.2",
     "@jprayner/piconet-nodejs": "^0.2.1",
     "commander": "^10.0.0"
+  },
+  "engines": {
+    "node": "16",
+    "npm": ">=7"
+  },
+  "standard": {
+    "env": [
+      "jest",
+      "node"
+    ]
   }
 }
