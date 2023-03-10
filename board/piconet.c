@@ -17,7 +17,7 @@
 
 #define VERSION_MAJOR           0
 #define VERSION_MINOR           2
-#define VERSION_REV             1
+#define VERSION_REV             2
 #define VERSION_STR_MAXLEN      16
 
 #define TX_DATA_BUFFER_SZ       3500

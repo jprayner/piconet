@@ -1,6 +1,6 @@
 {
   "name": "@jprayner/piconet-nodejs",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "NodeJS driver for Piconet: a USB interface for the Acorn/BBC Econet based on the Raspberry Pi Pico microprocessor.",
   "main": "dist/cjs/index.js",
   "module": "dist/esm/index.js",
