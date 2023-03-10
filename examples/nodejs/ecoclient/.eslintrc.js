@@ -29,12 +29,18 @@ module.exports = {
   rules: defaultRules,
   overrides: [
     {
-      files: '*.[t|j]s',
-      parserOptions: { project: './tsconfig.json' },
+      files: './src/*.[t|j]s',
+      parserOptions: {
+        tsconfigRootDir: './',
+        project: ['./tsconfig.json'],
+      },
     },
     {
-      files: '*.test.ts',
-      parserOptions: { project: './tsconfig.json' },
+      files: './src/*.test.ts',
+      parserOptions: {
+        tsconfigRootDir: './',
+        project: ['./tsconfig.json'],
+      },
       rules: {
         ...defaultRules,
         '@typescript-eslint/unbound-method': 'off',

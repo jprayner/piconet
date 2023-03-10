@@ -1,5 +1,10 @@
 import { hexdump } from '@gct256/hexdump';
-import { driver, EconetEvent, RxDataEvent, RxTransmitEvent } from '@jprayner/piconet-nodejs';
+import {
+  driver,
+  EconetEvent,
+  RxDataEvent,
+  RxTransmitEvent,
+} from '@jprayner/piconet-nodejs';
 
 export const controlByte = 0x80;
 export const port = 0x99;
@@ -15,29 +20,37 @@ export const stripCRs = (str: string) => str.replace(/\r/g, '');
 export const bufferToHexDump = (buffer: Buffer) => hexdump(buffer).join('\n');
 
 export const standardTxMessage = (
-    replyPort: number,
-    functionCode: number,
-    handleUserRootDir: number,
-    handleCurrentDir: number,
-    handleLibDir: number,
-    data: Buffer) => {
+  replyPort: number,
+  functionCode: number,
+  handleUserRootDir: number,
+  handleCurrentDir: number,
+  handleLibDir: number,
+  data: Buffer,
+) => {
   const header = Buffer.from([
     replyPort,
     functionCode,
     handleUserRootDir,
     handleCurrentDir,
-    handleLibDir]);
+    handleLibDir,
+  ]);
   return Buffer.concat([header, data]);
 };
 
-export const responseMatcher = (sourceStation: number, sourceNetwork: number, controlByte: number, ports: number[]) => {
+export const responseMatcher = (
+  sourceStation: number,
+  sourceNetwork: number,
+  controlByte: number,
+  ports: number[],
+) => {
   return (event: EconetEvent) => {
-    const result = event.type === 'RxTransmitEvent'
-      && event.scoutFrame.length >= 6
-      && event.scoutFrame[2] === sourceStation
-      && event.scoutFrame[3] === sourceNetwork
-      && event.scoutFrame[4] === controlByte
-      && ports.find(p => p === event.scoutFrame[5]) !== undefined;
+    const result =
+      event.type === 'RxTransmitEvent' &&
+      event.scoutFrame.length >= 6 &&
+      event.scoutFrame[2] === sourceStation &&
+      event.scoutFrame[3] === sourceNetwork &&
+      event.scoutFrame[4] === controlByte &&
+      ports.find(p => p === event.scoutFrame[5]) !== undefined;
     return result;
   };
 };
@@ -46,7 +59,7 @@ export const initConnection = async (options: any) => {
   console.log('Connecting to board...');
   await driver.connect(options.device);
 
-  driver.addListener((event) => {
+  driver.addListener(event => {
     console.log(event);
     if (event.type === 'ErrorEvent') {
       console.log('========================');
@@ -60,22 +73,26 @@ export const initConnection = async (options: any) => {
 };
 
 export const waitForAckEvent = async (serverStation: number, port: number) => {
-  return await driver.waitForEvent(
-    (event: EconetEvent) => {
-      const result = event.type === 'RxTransmitEvent'
-        && event.scoutFrame.length >= 6
-        && event.scoutFrame[2] === serverStation
-        && event.scoutFrame[3] === 0
-        && event.scoutFrame[6] === port;
-      return result;
-    },
-    2000);
-}
+  return driver.waitForEvent((event: EconetEvent) => {
+    const result =
+      event.type === 'RxTransmitEvent' &&
+      event.scoutFrame.length >= 6 &&
+      event.scoutFrame[2] === serverStation &&
+      event.scoutFrame[3] === 0 &&
+      event.scoutFrame[6] === port;
+    return result;
+  }, 2000);
+};
 
-export const waitForReceiveTxEvent = async (serverStation: number, controlByte: number, ports: number[]) => {
+export const waitForReceiveTxEvent = async (
+  serverStation: number,
+  controlByte: number,
+  ports: number[],
+) => {
   const rxTransmitEvent = await driver.waitForEvent(
     responseMatcher(serverStation, 0, controlByte, ports),
-    2000);
+    2000,
+  );
   if (rxTransmitEvent.type !== 'RxTransmitEvent') {
     throw new Error(`Unexpected response from station ${serverStation}`);
   }
@@ -88,10 +105,13 @@ export const waitForReceiveTxEvent = async (serverStation: number, controlByte: 
     commandCode: rxTransmitEvent.dataFrame[4],
     resultCode: rxTransmitEvent.dataFrame[5],
     data: rxTransmitEvent.dataFrame.slice(6),
-  }
+  };
 };
 
-export const executeCliCommand = async (serverStation: number, command: string) => {
+export const executeCliCommand = async (
+  serverStation: number,
+  command: string,
+) => {
   const functionCode = 0x00;
 
   const msg = standardTxMessage(
@@ -100,7 +120,7 @@ export const executeCliCommand = async (serverStation: number, command: string) 
     directoryHandles.userRoot,
     directoryHandles.current,
     directoryHandles.library,
-    Buffer.from(`${command}\r`)
+    Buffer.from(`${command}\r`),
   );
 
   const txResult = await driver.transmit(
@@ -108,14 +128,18 @@ export const executeCliCommand = async (serverStation: number, command: string) 
     0,
     controlByte,
     port,
-    msg
+    msg,
   );
 
   if (txResult.result !== 'OK') {
-    throw new Error(`Failed to send command to station ${serverStation}: ${txResult.result}`);
+    throw new Error(
+      `Failed to send command to station ${serverStation}: ${txResult.result}`,
+    );
   }
 
-  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
+  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [
+    replyPort,
+  ]);
 
   if (serverReply.resultCode !== 0x00) {
     const message = stripCRs(serverReply.data.toString('ascii'));

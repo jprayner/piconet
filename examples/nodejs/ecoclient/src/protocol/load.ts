@@ -1,4 +1,12 @@
-import { controlByte, directoryHandles, port, responseMatcher, standardTxMessage, stripCRs, waitForReceiveTxEvent } from "../common";
+import {
+  controlByte,
+  directoryHandles,
+  port,
+  responseMatcher,
+  standardTxMessage,
+  stripCRs,
+  waitForReceiveTxEvent,
+} from '../common';
 import { driver } from '@jprayner/piconet-nodejs';
 
 export const load = async (serverStation: number, filename: string) => {
@@ -13,7 +21,7 @@ export const load = async (serverStation: number, filename: string) => {
     dataPort,
     directoryHandles.current,
     directoryHandles.library,
-    Buffer.from(`${filename}\r`)
+    Buffer.from(`${filename}\r`),
   );
 
   const txResult = await driver.transmit(
@@ -21,14 +29,16 @@ export const load = async (serverStation: number, filename: string) => {
     0,
     controlByte,
     port,
-    msg
+    msg,
   );
 
   if (txResult.result !== 'OK') {
     throw new Error(`Failed to send LOAD command to station ${serverStation}`);
   }
 
-  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
+  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [
+    replyPort,
+  ]);
 
   if (serverReply.resultCode !== 0x00) {
     const message = stripCRs(serverReply.data.toString('ascii'));
@@ -36,22 +46,33 @@ export const load = async (serverStation: number, filename: string) => {
   }
 
   if (serverReply.data.length < 20) {
-    throw new Error(`Malformed response in LOAD from station ${serverStation}: success but not enough data`);
+    throw new Error(
+      `Malformed response in LOAD from station ${serverStation}: success but not enough data`,
+    );
   }
 
   const loadAddr = serverReply.data.readUInt32LE(0);
   const execAddr = serverReply.data.readUInt32LE(4);
-  const size = serverReply.data[8]
-    + (serverReply.data[9] << 8)
-    + (serverReply.data[10] << 16);
+  const size =
+    serverReply.data[8] +
+    (serverReply.data[9] << 8) +
+    (serverReply.data[10] << 16);
   const access = serverReply.data[11];
   const date = serverReply.data.readUint16LE(12);
-  const actualFilename = serverReply.data.subarray(14, 26).toString('ascii').trim();
+  const actualFilename = serverReply.data
+    .subarray(14, 26)
+    .toString('ascii')
+    .trim();
 
   const startTime = Date.now();
   let data = Buffer.from('');
   while (Date.now() - startTime < loadTimeoutMs) {
-    const dataOrEndEvent = await waitForDataOrStatus(serverStation, controlByte, dataPort, replyPort);
+    const dataOrEndEvent = await waitForDataOrStatus(
+      serverStation,
+      controlByte,
+      dataPort,
+      replyPort,
+    );
     if (dataOrEndEvent.port === replyPort) {
       if (serverReply.resultCode !== 0x00) {
         const message = stripCRs(serverReply.data.toString('ascii'));
@@ -61,7 +82,7 @@ export const load = async (serverStation: number, filename: string) => {
     }
 
     data = Buffer.concat([data, dataOrEndEvent.data]);
-  };
+  }
 
   // TODO: handle timeout
 
@@ -77,10 +98,16 @@ export const load = async (serverStation: number, filename: string) => {
   };
 };
 
-const waitForDataOrStatus = async (serverStation: number, controlByte: number, dataPort: number, statusPort: number) => {
+const waitForDataOrStatus = async (
+  serverStation: number,
+  controlByte: number,
+  dataPort: number,
+  statusPort: number,
+) => {
   const rxTransmitEvent = await driver.waitForEvent(
     responseMatcher(serverStation, 0, controlByte, [dataPort, statusPort]),
-    2000);
+    2000,
+  );
   if (rxTransmitEvent.type !== 'RxTransmitEvent') {
     throw new Error(`Unexpected response from station ${serverStation}`);
   }
@@ -96,15 +123,15 @@ const waitForDataOrStatus = async (serverStation: number, controlByte: number, d
       commandCode: rxTransmitEvent.dataFrame[4],
       resultCode: rxTransmitEvent.dataFrame[5],
       data: rxTransmitEvent.dataFrame.slice(6),
-    }
+    };
   } else {
     if (rxTransmitEvent.dataFrame.length < 2) {
       throw new Error(`Malformed response from station ${serverStation}`);
     }
-  
+
     return {
       type: 'data',
       data: rxTransmitEvent.dataFrame.slice(4),
-    }
+    };
   }
-}
+};

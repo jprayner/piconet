@@ -1,7 +1,22 @@
-import { controlByte, directoryHandles, port, responseMatcher, standardTxMessage, stripCRs, waitForAckEvent, waitForReceiveTxEvent } from "../common";
+import {
+  controlByte,
+  directoryHandles,
+  port,
+  responseMatcher,
+  standardTxMessage,
+  stripCRs,
+  waitForAckEvent,
+  waitForReceiveTxEvent,
+} from '../common';
 import { driver } from '@jprayner/piconet-nodejs';
 
-export const save = async (serverStation: number, fileData: Buffer, remoteFilename: string, loadAddr: number, execAddr: number) => {
+export const save = async (
+  serverStation: number,
+  fileData: Buffer,
+  remoteFilename: string,
+  loadAddr: number,
+  execAddr: number,
+) => {
   const loadTimeoutMs = 10000;
   const replyPort = 0x90;
   const ackPort = 0x91;
@@ -22,7 +37,7 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
   const bufferFileSize = Buffer.from([
     fileData.length & 0xff,
     (fileData.length >> 8) & 0xff,
-    (fileData.length >> 16) & 0xff
+    (fileData.length >> 16) & 0xff,
   ]);
   const bufferFileTitle = Buffer.from(remoteFilename);
 
@@ -39,7 +54,7 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
     ackPort,
     directoryHandles.current,
     directoryHandles.library,
-    requestData
+    requestData,
   );
 
   const txResult = await driver.transmit(
@@ -47,14 +62,16 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
     0,
     controlByte,
     port,
-    msg
+    msg,
   );
 
   if (txResult.result !== 'OK') {
     throw new Error(`Failed to send SAVE command to station ${serverStation}`);
   }
 
-  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
+  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [
+    replyPort,
+  ]);
 
   if (serverReply.resultCode !== 0x00) {
     const message = stripCRs(serverReply.data.toString('ascii'));
@@ -62,7 +79,9 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
   }
 
   if (serverReply.data.length < 3) {
-    throw new Error(`Malformed response in SAVE from station ${serverStation}: success but not enough data`);
+    throw new Error(
+      `Malformed response in SAVE from station ${serverStation}: success but not enough data`,
+    );
   }
 
   const dataPort = serverReply.data[0];
@@ -70,7 +89,7 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
 
   const startTime = Date.now();
   let dataLeftToSend = Buffer.from(fileData);
-  while (dataLeftToSend.length > 0 && (Date.now() - startTime < loadTimeoutMs)) {
+  while (dataLeftToSend.length > 0 && Date.now() - startTime < loadTimeoutMs) {
     const dataToSend = dataLeftToSend.slice(0, blockSize);
     dataLeftToSend = dataLeftToSend.slice(blockSize);
 
@@ -79,7 +98,7 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
       0,
       controlByte,
       dataPort,
-      dataToSend
+      dataToSend,
     );
 
     if (dataTxResult.result !== 'OK') {
@@ -91,18 +110,26 @@ export const save = async (serverStation: number, fileData: Buffer, remoteFilena
     }
   }
 
-  const finalReply = await waitForSaveStatus(serverStation, controlByte, replyPort);
+  const finalReply = await waitForSaveStatus(
+    serverStation,
+    controlByte,
+    replyPort,
+  );
 
   if (finalReply.resultCode !== 0x00) {
-    throw new Error(`Save failed`);
+    throw new Error('Save failed');
   }
 };
 
-
-const waitForSaveStatus = async (serverStation: number, controlByte: number, statusPort: number) => {
+const waitForSaveStatus = async (
+  serverStation: number,
+  controlByte: number,
+  statusPort: number,
+) => {
   const rxTransmitEvent = await driver.waitForEvent(
     responseMatcher(serverStation, 0, controlByte, [statusPort]),
-    2000);
+    2000,
+  );
   if (rxTransmitEvent.type !== 'RxTransmitEvent') {
     throw new Error(`Unexpected response from station ${serverStation}`);
   }
@@ -115,5 +142,5 @@ const waitForSaveStatus = async (serverStation: number, controlByte: number, sta
     resultCode: rxTransmitEvent.dataFrame[5],
     accessByte: rxTransmitEvent.dataFrame[6],
     date: rxTransmitEvent.dataFrame.readUint16LE(7),
-  }
-}
+  };
+};

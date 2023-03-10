@@ -1,19 +1,28 @@
-import { driver } from "@jprayner/piconet-nodejs";
-import { controlByte, directoryHandles, port, standardTxMessage, waitForReceiveTxEvent } from "../common";
+import { driver } from '@jprayner/piconet-nodejs';
+import {
+  controlByte,
+  directoryHandles,
+  port,
+  standardTxMessage,
+  waitForReceiveTxEvent,
+} from '../common';
 
-export const readDirAccessObjectInfo = async (serverStation: number, dirPath: string) => {
+export const readDirAccessObjectInfo = async (
+  serverStation: number,
+  dirPath: string,
+) => {
   const replyPort = 0x90;
   const functionCode = 0x12;
 
   const objectInfoHeader = Buffer.from([
-      // object info type a.k.a. ARG
-      //    0x01 = read creation date
-      //    0x02 = read load and execution addresses (8 bytes)
-      //    0x03 = read size (3 bytes)
-      //    0x04 = read type/access byte
-      //    0x05 = read all file attributes
-      //    0x06 = access/cycle/dir. name of given dir
-      0x06,
+    // object info type a.k.a. ARG
+    //    0x01 = read creation date
+    //    0x02 = read load and execution addresses (8 bytes)
+    //    0x03 = read size (3 bytes)
+    //    0x04 = read type/access byte
+    //    0x05 = read all file attributes
+    //    0x06 = access/cycle/dir. name of given dir
+    0x06,
   ]);
   const objectInfoTrailer = Buffer.from(`${dirPath}\r`);
 
@@ -23,7 +32,7 @@ export const readDirAccessObjectInfo = async (serverStation: number, dirPath: st
     directoryHandles.userRoot,
     directoryHandles.current,
     directoryHandles.library,
-    Buffer.concat([objectInfoHeader, objectInfoTrailer])
+    Buffer.concat([objectInfoHeader, objectInfoTrailer]),
   );
 
   const txResult = await driver.transmit(
@@ -31,17 +40,23 @@ export const readDirAccessObjectInfo = async (serverStation: number, dirPath: st
     0,
     controlByte,
     port,
-    msg
+    msg,
   );
 
   if (txResult.result !== 'OK') {
-    throw new Error(`Failed to send object info command (0x12) to station ${serverStation}: ${txResult.result}`);
+    throw new Error(
+      `Failed to send object info command (0x12) to station ${serverStation}: ${txResult.result}`,
+    );
   }
 
-  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
-  
+  const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [
+    replyPort,
+  ]);
+
   if (serverReply.data.length < 15) {
-    throw new Error(`Malformed response from station ${serverStation}: success but not enough data`);
+    throw new Error(
+      `Malformed response from station ${serverStation}: success but not enough data`,
+    );
   }
 
   const dirName = serverReply.data.slice(3, 13).toString('ascii').trim();
@@ -52,5 +67,5 @@ export const readDirAccessObjectInfo = async (serverStation: number, dirPath: st
     dirName,
     isOwner,
     cycleNum,
-  }
+  };
 };
