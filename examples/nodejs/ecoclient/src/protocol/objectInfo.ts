@@ -35,7 +35,7 @@ export const readDirAccessObjectInfo = async (serverStation: number, dirPath: st
   );
 
   if (txResult.result !== 'OK') {
-    throw new Error(`Failed to send object info command (0x12) to station ${serverStation}`);
+    throw new Error(`Failed to send object info command (0x12) to station ${serverStation}: ${txResult.result}`);
   }
 
   const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);
