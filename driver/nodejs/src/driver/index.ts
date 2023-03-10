@@ -263,24 +263,28 @@ export const waitForEvent = async (
 };
 
 export const rxDataEventToString = (event: RxDataEvent) => {
-  const hasScoutAndDataFrames = event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
-  const hasEconetFrame = event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
-  const frameForHeader = hasScoutAndDataFrames ? event.scoutFrame : event.econetFrame;
+  const hasScoutAndDataFrames =
+    event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
+  const hasEconetFrame =
+    event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
+  const frameForHeader = hasScoutAndDataFrames
+    ? event.scoutFrame
+    : event.econetFrame;
   const toStation = frameForHeader[0];
   const fromStation = frameForHeader[2];
   const title = `${event.type} ${fromStation} --> ${toStation}\n`;
   if (hasEconetFrame) {
-    return title
-      + '        '
-      + hexdump(event.econetFrame).join('\n        ');
+    return title + '        ' + hexdump(event.econetFrame).join('\n        ');
   } else {
-    return title
-      + '        '
-      + hexdump(event.scoutFrame).join('\n        ') + ' [SCOUT]\n'
-      + hexdump(event.dataFrame).join('\n        ');
+    return (
+      title +
+      '        ' +
+      hexdump(event.scoutFrame).join('\n        ') +
+      ' [SCOUT]\n' +
+      hexdump(event.dataFrame).join('\n        ')
+    );
   }
 };
-
 
 const handleData = (data: string) => {
   if (
@@ -312,4 +316,3 @@ const readStatus = async (): Promise<StatusEvent> => {
   }, 2000);
   return result as StatusEvent;
 };
-
