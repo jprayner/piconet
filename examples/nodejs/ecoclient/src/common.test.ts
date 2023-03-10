@@ -1,35 +1,97 @@
-import { driver } from '@jprayner/piconet-nodejs';
+import { driver, EconetEvent, RxTransmitEvent } from '@jprayner/piconet-nodejs';
 import { controlByte, executeCliCommand, port } from './common';
 
-//const driverMock = jest.mocked(driver, true);
-//jest.mock('@jprayner/piconet-nodejs');
+jest.mock('@jprayner/piconet-nodejs');
+const driverMock = jest.mocked(driver);
 
+interface rxTransmitProps {
+  fsStation: number,
+  fsNet: number,
+  localStation: number,
+  localNet: number,
+  controlByte: number,
+  replyPort: number,
+  commandCode: number,
+  resultCode: number,
+  data: Buffer
+}
 
-const driverMock = jest.mocked(driver, true);
+const dummyReplyRxTransmitEvent = (props: rxTransmitProps): RxTransmitEvent => {
+  const header = Buffer.from([props.localStation, props.localNet, props.fsStation, props.fsNet, props.commandCode, props.resultCode]);
+  const dataFrame = Buffer.concat([header, props.data]);
+  return {
+    type: 'RxTransmitEvent',
+    scoutFrame: Buffer.from([props.localStation, props.localNet, props.fsStation, props.fsNet, props.controlByte, props.replyPort]),
+    dataFrame,
+    receiveId: 0,
+  };
+};
 
 describe('common', () => {
-  /*
-  it('should execute a command', async () => {
-    jest.mocked(driver.transmit).mockImplementation(async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer) => {
+  it('should execute a command successfully', async () => {
+    driverMock.transmit.mockImplementation(async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer) => {
       return {
         type: 'TxResultEvent',
         result: 'OK',
       };
     });
-    jest.mocked(driver.waitForEvent).mockImplementation(async (callback: (event: EconetEvent) => boolean, timeoutMs: number) => {
-      return {
-        type: 'RxTransmitEvent',
-        scoutFrame: Buffer.from([0x01, 0x00, 0xfe, 0x00, controlByte, port]),
-        dataFrame: Buffer.from([0xbe, 0xef]),
-        receiveId: 0,
-      };
+    driverMock.waitForEvent.mockImplementation(async (callback: (event: EconetEvent) => boolean, timeoutMs: number) => {
+      return dummyReplyRxTransmitEvent(
+        {
+          fsStation: 254,
+          fsNet: 0,
+          localStation: 1,
+          localNet: 0,
+          controlByte,
+          replyPort: port,
+          commandCode: 0,
+          resultCode: 0,
+          data: Buffer.from([]),
+        });
     });
     const resultPromise = executeCliCommand(254, 'BYE');
-    //expect(waitForEventMock.mock.calls).toHaveLength(1);
-    //expect(waitForEventMock.mock.calls[0]).toHaveLength(1);
-    //const callback = waitForEventMock.mock.calls[0][0];
-    //callback();
     const result = await resultPromise;
+
+    expect(driverMock.transmit).toHaveBeenCalled();
+    expect(driverMock.waitForEvent).toHaveBeenCalled();
+    expect(result.resultCode).toBe(0);
   });
-  */
+
+  it('should throw error when no response received from server', async () => {
+    driverMock.transmit.mockImplementation(async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer) => {
+      return {
+        type: 'TxResultEvent',
+        result: 'invalid station number',
+      };
+    });
+    await expect(executeCliCommand(254, 'BYE')).rejects.toThrowError('Failed to send command to station 254: invalid station number');
+    expect(driverMock.transmit).toHaveBeenCalled();
+    expect(driverMock.waitForEvent).toHaveBeenCalled();
+  });
+
+  it('should feed back error message when server rejects command', async () => {
+    driverMock.transmit.mockImplementation(async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer) => {
+      return {
+        type: 'TxResultEvent',
+        result: 'OK',
+      };
+    });
+    driverMock.waitForEvent.mockImplementation(async (callback: (event: EconetEvent) => boolean, timeoutMs: number) => {
+      return dummyReplyRxTransmitEvent(
+        {
+          fsStation: 254,
+          fsNet: 0,
+          localStation: 1,
+          localNet: 0,
+          controlByte,
+          replyPort: port,
+          commandCode: 0,
+          resultCode: 1,
+          data: Buffer.from('Bad things are occuring'),
+        });
+    });
+    await expect(executeCliCommand(254, 'BYE')).rejects.toThrowError('Bad things are occuring');
+    expect(driverMock.transmit).toHaveBeenCalled();
+    expect(driverMock.waitForEvent).toHaveBeenCalled();
+  });
 });

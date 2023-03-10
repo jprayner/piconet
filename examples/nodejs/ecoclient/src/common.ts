@@ -112,7 +112,7 @@ export const executeCliCommand = async (serverStation: number, command: string) 
   );
 
   if (txResult.result !== 'OK') {
-    throw new Error(`Failed to send command to station ${serverStation}`);
+    throw new Error(`Failed to send command to station ${serverStation}: ${txResult.result}`);
   }
 
   const serverReply = await waitForReceiveTxEvent(serverStation, controlByte, [replyPort]);

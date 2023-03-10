@@ -1,6 +1,6 @@
 module.exports = {
   testEnvironment: 'node',
-  testMatch: ['**/*.test.ts', '**/*.test.js'],
+  testMatch: ['**/*.test.ts'],
   automock: false,
   resetMocks: false,
   transform: {
