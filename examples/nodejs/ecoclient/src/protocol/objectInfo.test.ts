@@ -10,6 +10,10 @@ const driverMock = jest.mocked(driver);
 const waitForReceiveTxEventMock = jest.mocked(waitForReceiveTxEvent);
 
 describe('objectInfo protocol handler', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should read directory object info successfully', async () => {
     driverMock.transmit.mockImplementation(async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer) => {
       return {

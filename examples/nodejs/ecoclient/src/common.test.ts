@@ -28,6 +28,10 @@ const dummyReplyRxTransmitEvent = (props: rxTransmitProps): RxTransmitEvent => {
 };
 
 describe('common', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
   it('should execute a command successfully', async () => {
     driverMock.transmit.mockImplementation(async (station: number, network: number, controlByte: number, port: number, data: Buffer, extraScoutData?: Buffer) => {
       return {
@@ -66,7 +70,7 @@ describe('common', () => {
     });
     await expect(executeCliCommand(254, 'BYE')).rejects.toThrowError('Failed to send command to station 254: invalid station number');
     expect(driverMock.transmit).toHaveBeenCalled();
-    expect(driverMock.waitForEvent).toHaveBeenCalled();
+    expect(driverMock.waitForEvent).not.toHaveBeenCalled();
   });
 
   it('should feed back error message when server rejects command', async () => {
