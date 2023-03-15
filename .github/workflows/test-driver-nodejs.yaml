@@ -28,6 +28,7 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: ${{ matrix.node }}
+          registry-url: 'https://registry.npmjs.org'
       - name: Install modules
         working-directory: ./driver/nodejs
         run: npm install
