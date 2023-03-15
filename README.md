@@ -4,6 +4,8 @@ Piconet allows modern computers (MacOS, PC and Linux) to talk to Acorn Econet ne
 
 Piconet is theoretically capable of supporting anything you can dream up which runs over Econet: file transfer utilities, file servers, D&D servers etc.
 
+![system-view](https://user-images.githubusercontent.com/909745/225333540-71af28cc-e700-44a8-87bd-7ba4ffddd420.png)
+
 This project provides the purple boxes in the above diagram: the hardware design of the Piconet board, the firmware which executes on the Pico, and the drivers which talk to it.
 
 ## Related projects
