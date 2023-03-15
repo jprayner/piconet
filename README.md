@@ -10,7 +10,7 @@ This project provides the purple boxes in the above diagram: the hardware design
 
 ## Related projects
 
-* ecoclient — a command-line utility for performing Econet operations
+* [ecoclient](https://github.com/jprayner/ecoclient) — a command-line utility for performing Econet operations
 
 ## State of development
 
@@ -27,7 +27,7 @@ This project is still under development. Currently:
 3. Connect the Pico to your machine with a USB cable whilst holding down the button on the Pico board
 4. The Pico should show as a storage device: copy the `.uf2` image to it
 5. The Pico should reboot automatically when the copy is complete
-6. Install an app such ecoclient or try one of the examples
+6. Install an app such [ecoclient](https://github.com/jprayner/ecoclient) or try one of the examples
 
 ## Credits
 
