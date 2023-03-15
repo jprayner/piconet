@@ -16,7 +16,7 @@ This project provides the purple boxes in the above diagram: the hardware design
 
 This project is still under development. Currently:
 
-* The board currently only exists in prototype form. A circuit diagram is available here. It is hoped that a prebuilt board will be available soon.
+* The board currently only exists in prototype form. A circuit diagram is available [here](https://github.com/jprayner/piconet/tree/main/board). It is hoped that a prebuilt board will be available soon.
 * At the moment, a (wired) USB connection is required between the Pico on the Piconet board and the host machine. In the future, this may be extended to allow your machine to connect to a Pico W over a WiFi network.
 * The only driver available today is based on Node.js. Contributions of drivers based on other languages are welcome. Please get in touch if you are interested in writing one (Python, Golang etc.)!
 
