@@ -45,15 +45,15 @@ jobs:
       - name: Install modules
         working-directory: ./driver/nodejs
         run: npm install
+      - name: Build
+        working-directory: ./driver/nodejs
+        run: npm run build
       - name: Run tests
         working-directory: ./driver/nodejs
         run: npm test
       - name: Lint
         working-directory: ./driver/nodejs
         run: npm run lint
-      - name: Build
-        working-directory: ./driver/nodejs
-        run: npm run build
       - name: Publish to npm
         working-directory: ./driver/nodejs
         run: npm publish --access public
