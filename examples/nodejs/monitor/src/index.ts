@@ -1,16 +1,15 @@
-import { driver } from '@jprayner/piconet-nodejs';
-import { hexdump } from '@gct256/hexdump';
-import { EconetEvent } from '@jprayner/piconet-nodejs';
+import { driver, EconetEvent, ErrorEvent } from '@jprayner/piconet-nodejs';
 
 async function main() {
   console.log('Connecting to board...');
   await driver.connect();
 
   driver.addListener((event) => {
-    if (event.type === 'ErrorEvent') {
+    if (event instanceof RxDataEvent) {
       console.log(`ERROR: ${event.description}`);
+      return;
     } else {
-      logFrame(event);
+      driver.rxDataEventToString(event);
     }
   });
 

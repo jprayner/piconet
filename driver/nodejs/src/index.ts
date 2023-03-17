@@ -1,5 +1,7 @@
 export * as driver from './driver';
 
+export { EconetEvent } from './types/econetEvent';
+export { RxDataEvent } from './types/rxDataEvent';
 export { RxTransmitEvent } from './types/rxTransmitEvent';
 export { StatusEvent } from './types/statusEvent';
 export { ErrorEvent } from './types/errorEvent';
