@@ -56,13 +56,13 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
   let rxState: RxMode | undefined = undefined;
   switch (parseInt(boardStateStr, 10)) {
     case 0:
-      rxState = RxMode.Stopped;
+      rxState = RxMode.STOP;
       break;
     case 1:
-      rxState = RxMode.Listening;
+      rxState = RxMode.LISTEN;
       break;
     case 2:
-      rxState = RxMode.Monitoring;
+      rxState = RxMode.MONITOR;
       break;
     default:
       throw new Error(
@@ -70,11 +70,9 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
       );
   }
 
-  return {
-    type: 'status',
-    firmwareVersion: firmwareVersionStr,
-    econetStation: parseInt(econetStationStr, 10),
-    statusRegister1: parseInt(statusRegister1Str, 16),
-    rxMode: rxState,
-  };
+  return new StatusEvent(
+    firmwareVersionStr,
+    parseInt(econetStationStr, 10),
+    parseInt(statusRegister1Str, 16),
+    rxState);
 };

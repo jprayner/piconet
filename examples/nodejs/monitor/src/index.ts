@@ -8,9 +8,7 @@ async function main() {
 
   driver.addListener((event) => {
     if (event.type === 'ErrorEvent') {
-      console.log('========================');
       console.log(`ERROR: ${event.description}`);
-      console.log('========================\n');
     } else {
       logFrame(event);
     }

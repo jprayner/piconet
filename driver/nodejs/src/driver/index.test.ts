@@ -4,9 +4,9 @@ import {
   setMode,
   addListener,
   setEconetStation,
-  removeListener,
-  EconetEvent,
+  removeListener
 } from '.';
+import { EconetEvent } from '../types/econetEvent';
 import { openPort, writeToPort } from './serial';
 import { PKG_VERSION } from './version';
 

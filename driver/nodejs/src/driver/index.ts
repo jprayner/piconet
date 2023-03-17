@@ -2,13 +2,14 @@ import { hexdump } from '@gct256/hexdump';
 import config from '../config';
 import { PKG_VERSION } from './version';
 import { StatusEvent } from '../types/statusEvent';
+import { EconetEvent } from '../types/econetEvent';
+import { RxDataEvent } from '../types/rxDataEvent';
 import { parseStatusEvent } from '../parser/statusParser';
 import { parseMonitorEvent } from '../parser/monitorParser';
 import { MonitorEvent } from '../types/monitorEvent';
 import { TxResultEvent } from '../types/txResultEvent';
 import { RxImmediateEvent } from '../types/rxImmediateEvent';
 import { RxBroadcastEvent } from '../types/rxBroadcastEvent';
-import { ErrorEvent } from '../types/errorEvent';
 import { parseErrorEvent } from '../parser/errorParser';
 import { parseRxImmediateEvent } from '../parser/rxImmediateParser';
 import { parseTxResultEvent } from '../parser/txResultParser';
@@ -17,8 +18,6 @@ import { drainAndClose, openPort, writeToPort } from './serial';
 import { areVersionsCompatible, parseSemver } from './semver';
 import { RxTransmitEvent } from '../types/rxTransmitEvent';
 import { parseRxTransmitEvent } from '../parser/rxTransmitParser';
-import { ReplyResultEvent } from '../types/replyResultEvent';
-import { parseReplyResultEvent } from '../parser/replyResultParser';
 
 enum ConnectionState {
   Disconnected = 'Disconnected',
@@ -28,23 +27,14 @@ enum ConnectionState {
   Error = 'Error',
 }
 
-export type EconetEvent =
-  | StatusEvent
-  | ErrorEvent
-  | MonitorEvent
-  | RxTransmitEvent
-  | RxImmediateEvent
-  | RxBroadcastEvent
-  | TxResultEvent
-  | ReplyResultEvent;
-
-export type RxDataEvent =
-  | MonitorEvent
-  | RxTransmitEvent
-  | RxImmediateEvent
-  | RxBroadcastEvent;
-
+/**
+ * Used to register a listener for events from the Econet driver.
+ */
 export type Listener = (event: EconetEvent) => void;
+
+/**
+ * Use to filter events from the Econet driver.
+ */
 export type EventMatcher = (event: EconetEvent) => boolean;
 
 const parsers = [
@@ -55,11 +45,32 @@ const parsers = [
   parseRxImmediateEvent,
   parseRxBroadcastEvent,
   parseTxResultEvent,
-  parseReplyResultEvent,
 ];
 let listeners: Array<Listener> = [];
 let state: ConnectionState = ConnectionState.Disconnected;
 
+/**
+ * Connect the driver to the Piconet board.
+ * 
+ * This function must be successfully called before interacting with the Econet driver. The following steps
+ * are carried out:
+ * 
+ * 1. Open a serial connection to the board. If `requestedDevice` is not specified then an attempt will be
+ *    made to autodetect it. This step may fail if the board is not connected or another application is using
+ *    it.
+ * 2. The driver will then send a `STATUS` command to the board. This step may fail if the Raspberry Pi Pico
+ *    has not been flashed with {@link https://github.com/jprayner/piconet/releases|the correct firmware}
+ *    (.uf2 image).
+ * 3. The driver will then compare the firmware version returned by the board against that of the driver
+ *    using semantic versioning. If the versions are not compatible then an error will be thrown.
+ * 
+ * After connecting, the board will be in the `STOP` operating mode. Remember to call {@link setMode} to
+ * start it doing useful work.
+ * 
+ * @param requestedDevice Optionally specifies the serial device for the Raspberry Pi Pico on the
+ *                        Piconet board. If left undefined then an attempt will be made to automatically
+ *                        detect it.
+ */
 export const connect = async (requestedDevice?: string): Promise<void> => {
   if (
     state !== ConnectionState.Disconnected &&
@@ -90,6 +101,24 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
   }
 };
 
+/**
+ * Puts the board into a new operating mode.
+ * 
+ * The board can be in one of three operating modes:
+ * 
+ * * `STOP` - The board starts in this mode. No events are generated in response to network traffic,
+ *        allowing the client to initialise configuration before proceeding.
+ * 
+ * * `LISTEN` - The normal Econet station operating mode. The board generates events for broadcast
+ *        frames or frames targeting the configured local Econet station number. You should normally
+ *        set the station number before entering this mode: see {@link setEconetStation}.
+ * 
+ * * `MONITOR` - The board generates an event for every frame received, regardless of its source or
+ *        destination (promiscuous mode). Useful for capturing traffic between other stations like
+ *        the BBC NETMON utility. A code example is provided for how to build such a utility.
+ * 
+ * @param mode The new operating mode.
+ */
 export const setMode = async (
   mode: 'STOP' | 'MONITOR' | 'LISTEN',
 ): Promise<void> => {
@@ -114,6 +143,14 @@ export const setMode = async (
   await readStatus();
 };
 
+/**
+ * Sets the Econet station number for the board so that it knows which received frames to generate
+ * events for and how to populate the "from address" of outbound frames.
+ * 
+ * The station number should be unique on the Econet network.
+ * 
+ * @param station The new Econet station number (an integer in range 1-254, inclusive).
+ */
 export const setEconetStation = async (station: number): Promise<void> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(
@@ -127,9 +164,34 @@ export const setEconetStation = async (station: number): Promise<void> => {
 
   await writeToPort(`SET_STATION ${station}\r`);
   await readStatus();
-  // TODO: should we check that status has correct station number?
 };
 
+/**
+ * Implements an Econet `TRANSMIT` operation.
+ * 
+ * This consists of a "four-way handshake":
+ * 
+ * 1. A "scout" frame sent from the board to the destination station. This includes a `controlByte`
+ *    and `port` which are used by the receiver to identify the type of data being sent.
+ * 2. Assuming the receiver is (a) connected to the network and listening for traffic and (b)
+ *    is configured to handle the `controlByte`/`port`, it responds with a "scout ack" frame
+ *    instructing the caller to proceed.
+ * 3. The board sends a frame containing the payload `data` to the destination station.
+ * 4. The receiver responds with a "data ack" frame confirming receipt of the data.
+ * 
+ * @param station         Destination Econet station number (integer in range 1-254, inclusive).
+ * @param network         Destination Econet network number (0 for local network; only use other
+ *                        values if you have an appropriately configured Econet bridge).
+ * @param controlByte     Econet control byte (integer in range 0-255, inclusive).
+ * @param port            Econet port number (integer in range 0-255, inclusive).
+ * @param data            Buffer containing binary payload data to send.
+ * @param extraScoutData  Optional extra data to include in the scout frame. This is useful for
+ *                        a small number of special operations such as NOTIFY.
+ * 
+ * @returns Describes the result of the operation. If the operation was successful then the
+ *          `success` flag is set to `true`; otherwise the `description` field describes the
+ *          error.
+ */
 export const transmit = async (
   station: number,
   network: number,
@@ -167,22 +229,12 @@ export const transmit = async (
       throw new Error('Extra scout data too long');
     }
 
-    console.log(
-      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
-        'base64',
-      )} ${extraScoutData.toString('base64')}\r`,
-    );
     await writeToPort(
       `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
         'base64',
       )} ${extraScoutData.toString('base64')}\r`,
     );
   } else {
-    console.log(
-      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
-        'base64',
-      )}\r`,
-    );
     await writeToPort(
       `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
         'base64',
@@ -191,28 +243,14 @@ export const transmit = async (
   }
 
   const result = await waitForEvent(event => {
-    return event.type === 'TxResultEvent';
+    return event instanceof TxResultEvent;
   }, 2000);
   return result as TxResultEvent;
 };
 
-export const reply = async (
-  receiveId: number,
-  data: Buffer,
-): Promise<ReplyResultEvent> => {
-  if (state !== ConnectionState.Connected) {
-    throw new Error(`Cannot transmit data whilst in ${state} state`);
-  }
-
-  console.log(`REPLY ${receiveId} ${data.toString('base64')}\r`);
-  await writeToPort(`REPLY ${receiveId} ${data.toString('base64')}\r`);
-
-  const result = await waitForEvent(event => {
-    return event.type === 'ReplyResultEvent';
-  }, 2000);
-  return result as ReplyResultEvent;
-};
-
+/**
+ * Disconnects from the board and closes the serial port.
+ */
 export const close = async (): Promise<void> => {
   if (state !== ConnectionState.Connected) {
     throw new Error(`Cannot close device whilst in ${state} state`);
@@ -221,20 +259,39 @@ export const close = async (): Promise<void> => {
   state = ConnectionState.Disconnected;
 };
 
+/**
+ * Adds a new listener for events generated by the board.
+ * 
+ * @param listener The listener to add.
+ */
 export const addListener = (listener: Listener) => {
   if (!listeners.find(l => l === listener)) {
     listeners.push(listener);
   }
 };
 
+/**
+ * Removes a listener previously registered with {@link addListener}.
+ * 
+ * @param listener The listener to remove.
+ */
 export const removeListener = (listener: Listener) => {
   listeners = listeners.filter(l => l !== listener);
 };
 
-export const fireListeners = (event: EconetEvent) => {
+const fireListeners = (event: EconetEvent) => {
   listeners.forEach(listener => listener(event));
 };
 
+/**
+ * Waits for a matching event with a timeout.
+ * 
+ * @param matcher   A function that returns `true` if the passed event matches the required
+ *                  criteria.
+ * @param timeoutMs Maximum time to wait for a matching event in milliseconds. If no matching
+ *                  event is found within this period then the promise is rejected.
+ * @returns         The matching event.
+ */
 export const waitForEvent = async (
   matcher: EventMatcher,
   timeoutMs: number,
@@ -263,28 +320,40 @@ export const waitForEvent = async (
   });
 };
 
+/**
+ * Returns a string representation of a received data event consisting of:
+ * 
+ * * a title line containing the event type and the source and destination stations
+ * * (for `MonitorEvent` and `RxBroadcastEvent`) hex dump of the received frame
+ * * (for `RxImmediateEvent` and `RxTransmitEvent`) hex dump of the scout and data frames
+ * 
+ * @param event A subclass of `RxDataEvent`.
+ * @returns A string representation of the event.
+ */
 export const rxDataEventToString = (event: RxDataEvent) => {
-  const hasScoutAndDataFrames =
-    event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
-  const hasEconetFrame =
-    event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
-  const frameForHeader = hasScoutAndDataFrames
-    ? event.scoutFrame
-    : event.econetFrame;
-  const toStation = frameForHeader[0];
-  const fromStation = frameForHeader[2];
-  const title = `${event.type} ${fromStation} --> ${toStation}\n`;
-  if (hasEconetFrame) {
-    return title + '        ' + hexdump(event.econetFrame).join('\n        ');
-  } else {
-    return (
-      title +
-      '        ' +
-      hexdump(event.scoutFrame).join('\n        ') +
-      ' [SCOUT]\n' +
-      hexdump(event.dataFrame).join('\n        ')
-    );
+  const titleForFrame = (frame: Buffer) => {
+    const toStation = frame[0];
+    const toNet = frame[1];
+    const fromStation = frame[2];
+    const fromNet = frame[3];
+    return `${event.constructor.name} ${fromNet}.${fromStation} --> ${toNet}.${toStation}\n`;
+  };
+
+  if (event instanceof MonitorEvent || event instanceof RxBroadcastEvent) {
+    return titleForFrame(event.econetFrame)
+      + '        '
+      + hexdump(event.econetFrame).join('\n        ');
   }
+
+  if (event instanceof RxImmediateEvent || event instanceof RxTransmitEvent) {
+    return titleForFrame(event.scoutFrame)
+      + '[SCOUT] '
+      + hexdump(event.dataFrame).join('\n        ')
+      + '[DATA]  '
+      + hexdump(event.dataFrame).join('\n        ');
+  }
+
+  throw new Error('Unexpected event type');
 };
 
 const handleData = (data: string) => {
@@ -303,7 +372,12 @@ const handleData = (data: string) => {
   });
 };
 
-const readStatus = async (): Promise<StatusEvent> => {
+/**
+ * Queries the current status of the board.
+ * 
+ * @returns The current status of the board.
+ */
+export const readStatus = async (): Promise<StatusEvent> => {
   if (
     state !== ConnectionState.Connecting &&
     state !== ConnectionState.Connected
@@ -312,8 +386,6 @@ const readStatus = async (): Promise<StatusEvent> => {
   }
 
   await writeToPort('STATUS\r');
-  const result = await waitForEvent(event => {
-    return event.type === 'status';
-  }, 2000);
+  const result = await waitForEvent(event => event instanceof StatusEvent, 2000);
   return result as StatusEvent;
 };

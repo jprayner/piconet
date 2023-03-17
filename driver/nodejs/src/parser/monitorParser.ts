@@ -16,10 +16,7 @@ export const parseMonitorEvent = (event: string): MonitorEvent | undefined => {
 
   const data = attributes[0];
   try {
-    return {
-      type: 'MonitorEvent',
-      econetFrame: Buffer.from(data, 'base64'),
-    };
+    return new MonitorEvent(Buffer.from(data, 'base64'));
   } catch (e) {
     throw new Error(
       `Protocol error. Invalid MONITOR event '${event}' received. Failed to parse base64 data.`,

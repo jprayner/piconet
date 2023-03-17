@@ -15,9 +15,9 @@
 #include "./lib/b64/cencode.h"
 #include "./lib/b64/cdecode.h"
 
-#define VERSION_MAJOR           0
-#define VERSION_MINOR           2
-#define VERSION_REV             2
+#define VERSION_MAJOR           1
+#define VERSION_MINOR           0
+#define VERSION_REV             0
 #define VERSION_STR_MAXLEN      16
 
 #define TX_DATA_BUFFER_SZ       3500
@@ -234,8 +234,7 @@ void _core0_loop(void) {
                         break;
                     case PICONET_RX_RESULT_TRANSMIT :
                         printf(
-                            "RX_TRANSMIT %u %s %s\n",
-                            event.rx_event_detail.reply_id,
+                            "RX_TRANSMIT %s %s\n",
                             _encode_base64(
                                 b64_scout_buffer,
                                 event.rx_event_detail.scout,

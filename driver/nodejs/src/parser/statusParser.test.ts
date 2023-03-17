@@ -10,7 +10,7 @@ describe('status message parser', () => {
     expect(result?.firmwareVersion).toBe('0.1.1');
     expect(result?.econetStation).toBe(32);
     expect(result?.statusRegister1).toBe(16);
-    expect(result?.rxMode).toBe(RxMode.Listening);
+    expect(result?.rxMode).toBe(RxMode.LISTEN);
   });
 
   it('should return no match (undefined) due to empty string', () => {

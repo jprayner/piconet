@@ -18,10 +18,7 @@ export const parseRxBroadcastEvent = (
 
   const data = attributes[0];
   try {
-    return {
-      type: 'RxBroadcastEvent',
-      econetFrame: Buffer.from(data, 'base64'),
-    };
+    return new RxBroadcastEvent(Buffer.from(data, 'base64'));
   } catch (e) {
     throw new Error(
       `Protocol error. Invalid RX_BROADCAST event '${event}' received. Failed to parse base64 data.`,

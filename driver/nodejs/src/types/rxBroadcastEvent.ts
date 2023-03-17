@@ -1,4 +1,15 @@
-export type RxBroadcastEvent = {
-  type: 'RxBroadcastEvent';
-  econetFrame: Buffer;
-};
+import { RxDataEvent } from './rxDataEvent';
+
+/**
+ * Fired asynchronously whilst in `LISTEN` mode as broadcast packets are received.
+ */
+export class RxBroadcastEvent extends RxDataEvent {
+  constructor(
+    /**
+     * The raw Econet frame.
+     */
+    public econetFrame: Buffer,
+  ) {
+    super();
+  }
+}

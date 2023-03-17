@@ -17,8 +17,5 @@ export const parseTxResultEvent = (
   const attributes = terms.slice(1);
 
   const result = attributes[0];
-  return {
-    type: 'TxResultEvent',
-    result,
-  };
+  return new TxResultEvent(result === 'OK', result);
 };
