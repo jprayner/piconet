@@ -74,5 +74,6 @@ export const parseStatusEvent = (event: string): StatusEvent | undefined => {
     firmwareVersionStr,
     parseInt(econetStationStr, 10),
     parseInt(statusRegister1Str, 16),
-    rxState);
+    rxState,
+  );
 };

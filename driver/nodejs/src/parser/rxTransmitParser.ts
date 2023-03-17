@@ -18,5 +18,6 @@ export const parseRxTransmitEvent = (
 
   return new RxTransmitEvent(
     Buffer.from(attributes[0], 'base64'),
-    Buffer.from(attributes[1], 'base64'));
+    Buffer.from(attributes[1], 'base64'),
+  );
 };

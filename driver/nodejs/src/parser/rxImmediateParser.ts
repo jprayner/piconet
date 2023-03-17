@@ -19,7 +19,10 @@ export const parseRxImmediateEvent = (
   const scout = attributes[0];
   const data = attributes[1];
   try {
-    return new RxImmediateEvent(Buffer.from(scout, 'base64'), Buffer.from(data, 'base64'));
+    return new RxImmediateEvent(
+      Buffer.from(scout, 'base64'),
+      Buffer.from(data, 'base64'),
+    );
   } catch (e) {
     throw new Error(
       `Protocol error. Invalid RX_IMMEDIATE event '${event}' received. Failed to parse base64 data.`,

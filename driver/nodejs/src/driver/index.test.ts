@@ -4,7 +4,7 @@ import {
   setMode,
   addListener,
   setEconetStation,
-  removeListener
+  removeListener,
 } from '.';
 import { EconetEvent } from '../types/econetEvent';
 import { openPort, writeToPort } from './serial';
