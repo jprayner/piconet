@@ -8,7 +8,7 @@ import {
   EconetEvent,
 } from '.';
 import { openPort, writeToPort } from './serial';
-import config from '../config';
+import { PKG_VERSION } from './version';
 
 jest.mock('./serial');
 
@@ -23,7 +23,7 @@ describe('driver', () => {
   it('should connect successfully', async () => {
     setTimeout(() => {
       const dataHandlerFunc = openPortMock.mock.calls[0][0];
-      dataHandlerFunc(`STATUS ${config.version} 2 00 0\r`);
+      dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 0\r`);
     }, 100);
 
     await expect(connect()).resolves.toBeUndefined();
@@ -39,7 +39,7 @@ describe('driver', () => {
 
     setTimeout(() => {
       const dataHandlerFunc = openPortMock.mock.calls[0][0];
-      dataHandlerFunc(`STATUS ${config.version} 2 00 0\r`);
+      dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 0\r`);
     }, 100);
 
     await connect();
@@ -59,7 +59,7 @@ describe('driver', () => {
 
     setTimeout(() => {
       const dataHandlerFunc = openPortMock.mock.calls[0][0];
-      dataHandlerFunc(`STATUS ${config.version} 2 00 0\r`);
+      dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 0\r`);
     }, 100);
 
     await connect();
@@ -75,7 +75,7 @@ describe('driver', () => {
     }, 100);
 
     await expect(connect()).rejects.toThrow(
-      `Driver version ${config.version} is not compatible with board firmware version 99.99.99.`,
+      `Driver version ${PKG_VERSION} is not compatible with board firmware version 99.99.99.`,
     );
   });
 
@@ -164,6 +164,6 @@ describe('driver', () => {
 const mockStatusEventFromBoard = (rxMode: number) => {
   setTimeout(() => {
     const dataHandlerFunc = openPortMock.mock.calls[0][0];
-    dataHandlerFunc(`STATUS ${config.version} 2 00 ${rxMode}\r`);
+    dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 ${rxMode}\r`);
   }, 100);
 };

@@ -1,4 +1,4 @@
-import config from '../config';
+import { PKG_VERSION } from '../driver/version';
 import { RxMode } from '../types/statusEvent';
 import { parseStatusEvent } from './statusParser';
 
@@ -38,21 +38,21 @@ describe('status message parser', () => {
   });
 
   it('should fail to parse due to wrong number of attibutes', () => {
-    const eventStr = `STATUS ${config.version} 32 10 1 i_shouldnt_be_here`;
+    const eventStr = `STATUS ${PKG_VERSION} 32 10 1 i_shouldnt_be_here`;
     expect(() => parseStatusEvent(eventStr)).toThrow(
       `Protocol error. Invalid STATUS event '${eventStr}' received. Expected 4 attributes, got 5`,
     );
   });
 
   it('should fail to parse due to invalid econet station number', () => {
-    const eventStr = `STATUS ${config.version} xxx 10 1`;
+    const eventStr = `STATUS ${PKG_VERSION} xxx 10 1`;
     expect(() => parseStatusEvent(eventStr)).toThrow(
       `Protocol error. Invalid STATUS event '${eventStr}' received. Invalid econet station 'xxx'.`,
     );
   });
 
   it('should fail to parse due to invalid status register value', () => {
-    const eventStr = `STATUS ${config.version} 32 xxx 1`;
+    const eventStr = `STATUS ${PKG_VERSION} 32 xxx 1`;
     expect(() => parseStatusEvent(eventStr)).toThrow(
       `Protocol error. Invalid STATUS event '${eventStr}' received. Invalid status register 1 value 'xxx'.`,
     );

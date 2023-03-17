@@ -9,6 +9,7 @@
     "dist"
   ],
   "scripts": {
+    "prebuild": "node -p \"'export const PKG_VERSION = \\'' + require('./package.json').version + '\\';'\" > src/driver/version.ts",
     "prepublishOnly": "npm run build",
     "build": "npm run build:cjs && npm run build:esm && npm run build:types",
     "build:cjs": "node tools/cleanup cjs && tsc -p config/tsconfig.cjs.json",

@@ -20,3 +20,4 @@ pnpm-lock.yaml
 .env
 *.mjs
 .dccache
+src/driver/version.ts

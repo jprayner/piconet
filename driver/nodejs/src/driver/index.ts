@@ -1,5 +1,6 @@
 import { hexdump } from '@gct256/hexdump';
 import config from '../config';
+import { PKG_VERSION } from './version';
 import { StatusEvent } from '../types/statusEvent';
 import { parseStatusEvent } from '../parser/statusParser';
 import { parseMonitorEvent } from '../parser/monitorParser';
@@ -74,8 +75,8 @@ export const connect = async (requestedDevice?: string): Promise<void> => {
 
     const firmwareVersionStr = status.firmwareVersion;
     const firmwareVersion = parseSemver(firmwareVersionStr);
-    const driverVersionStr = config.version;
-    const driverVersion = parseSemver(config.version);
+    const driverVersionStr = PKG_VERSION;
+    const driverVersion = parseSemver(PKG_VERSION);
     if (!areVersionsCompatible(firmwareVersion, driverVersion)) {
       throw new Error(
         `Driver version ${driverVersionStr} is not compatible with board firmware version ${firmwareVersionStr}.`,
