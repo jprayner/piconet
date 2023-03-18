@@ -4,7 +4,7 @@ This example shows how to implement a NodeJS-based equivalent of the Acorn NETMO
 
 ## Hardware prerequisites
 
-* Build/aquire hardware: https://github.com/jprayner/piconet/tree/main/board
+* Build/acquire hardware: https://github.com/jprayner/piconet/tree/main/board
 * Install the latest firmware onto the board as desribed here: https://github.com/jprayner/piconet#getting-started
 
 ## Software prerequisites
