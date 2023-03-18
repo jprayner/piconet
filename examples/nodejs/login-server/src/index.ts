@@ -1,53 +1,80 @@
-import { driver } from '@jprayner/piconet-nodejs';
-import { hexdump } from '@gct256/hexdump';
-import { EconetEvent, RxTransmitEvent } from '@jprayner/piconet-nodejs';
+import { driver, ErrorEvent } from '@jprayner/piconet-nodejs';
+import { RxTransmitEvent } from '@jprayner/piconet-nodejs';
 
-type txHeader = {
-  replyPort: number,
-  functionCode: number,
-  handleUserRootDir: number,
-  handleCurrentDir: number,
-  handleLibDir: number,
-};
+const localStationNum = 171;  // Make sure this is unique on your Econet network!
+const controlByte = 0x80;     // Identifies Econet file server packets
+const port = 0x99;            // Econet file server listen port
 
-type rxHeader = {
-  commandCode: number,
-  returnCode: number,
-};
+const stripCRs = (str: string) => str.replace(/\r/g, '');
 
-async function main() {
+const main = async () => {
   console.log('Connecting to board...');
   await driver.connect();
 
   driver.addListener((event) => {
-    console.log(event);
-    if (event.type === 'ErrorEvent') {
-      console.log('========================');
+    if (event instanceof ErrorEvent) {
       console.log(`ERROR: ${event.description}`);
-      console.log('========================\n');
-    }
-    if (event.type === 'RxTransmitEvent') {
-      logFrame(event);
+    } else if (event instanceof RxTransmitEvent) {
       handleReceive(event);
     }
   });
 
-  await driver.setEconetStation(2);
-  await driver.setMode('LISTEN');
+  await driver.setEconetStation(localStationNum);
+  console.log(`Set local station number to ${localStationNum}`);
 
+  await driver.setMode('LISTEN');
   console.log('Listening for traffic...');
 
-  await sleep(10000);
-  // process.on('SIGINT', async () => {
-  console.log('Disconnecting from board...');
-  await driver.close();
-  process.exit();
-  // });  
+  process.on('SIGINT', async () => {
+    console.log('Disconnecting from board...');
+    await driver.close();
+    process.exit();
+  });
 }
 
-const sleep = async (ms: number) => {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+const handleReceive = async (event: RxTransmitEvent) => {
+  const scout = parseScoutFrame(event.scoutFrame);
+  const data = parseData(event.dataFrame).contents;
+
+  if (scout.controlByte !== controlByte) {
+    console.log('Ignoring request with unexpected control byte');
+    return;
+  }
+  if (scout.port !== port) {
+    console.log('Ignoring request on unexpected port');
+    return;
+  }
+
+  if (data.length < 5) {
+    console.log('OSCLI data frame is too short');
+    return;
+  }
+
+  const replyPort = data[0];
+  const command = data.subarray(5);
+  console.log(`Received OSCLI command="${stripCRs(command.toString('ascii'))}"`);
+
+  // issue a dummy successful reply
+  const txResult = await driver.transmit(
+    scout.fromStation,
+    scout.fromNetwork,
+    controlByte,
+    replyPort,
+    Buffer.from([
+      0x05, // indicates a successful login
+      0x00, // return code of zero indicates success
+      0x01, // user root dir handle
+      0x02, // currently selected dir handle
+      0x04, // library dir handle
+      0x00, // boot option (0 = none)
+    ]));
+  
+  if (txResult.success) {
+    console.log('Successfully sent reply');
+  } else {
+    console.log(`Failed to send reply: ${txResult.description}`);
+  }
+};
 
 const parseScoutFrame = (scoutFrame: Buffer) => {
   if (scoutFrame.length < 6) {
@@ -76,49 +103,6 @@ const parseData = (dataFrame: Buffer) => {
     fromNetwork: dataFrame[3],
     contents: dataFrame.subarray(4),
   };
-};
-
-const handleReceive = async (event: RxTransmitEvent) => {
-  const scout = parseScoutFrame(event.scoutFrame);
-  const data = parseData(event.dataFrame).contents;
-
-  if (scout.controlByte !== 0x80) {
-    console.log('Ignoring request with unexpected control byte');
-    return;
-  }
-  if (scout.port !== 0x99) {
-    console.log('Ignoring request on unexpected port');
-    return;
-  }
-
-  if (data.length < 5) {
-    console.log('OSCLI data frame is too short');
-    return;
-  }
-
-  const replyPort = data[0];
-  const command = data.subarray(5);
-  console.log(`Received command="${command.toString('ascii')}"`);
-
-  await driver.transmit(scout.fromStation, scout.fromNetwork, 0x80, replyPort, Buffer.from([0x05, 0x00, 0x01, 0x02, 0x04, 0x00]));
-};
-
-const logFrame = (event: EconetEvent) => {
-  const hasScoutAndDataFrames = event.type === 'RxImmediateEvent' || event.type === 'RxTransmitEvent';
-  const hasEconetFrame = event.type === 'MonitorEvent' || event.type === 'RxBroadcastEvent';
-  const hasAnyFrame = hasScoutAndDataFrames || hasEconetFrame;
-  if (hasAnyFrame) {
-    const frameForHeader = hasScoutAndDataFrames ? event.scoutFrame : event.econetFrame;
-    const toStation = frameForHeader[0];
-    const fromStation = frameForHeader[2];
-    console.log(`${event.type.toUpperCase()} ${fromStation} --> ${toStation}`);
-    if (hasEconetFrame) {
-      console.log('        ' + hexdump(event.econetFrame).join('\n        '));
-    } else {
-      console.log('        ' + hexdump(event.scoutFrame).join('\n        ') + ' [SCOUT]');
-      console.log('        ' + hexdump(event.dataFrame).join('\n        '));
-    }
-  }
 };
 
 main();

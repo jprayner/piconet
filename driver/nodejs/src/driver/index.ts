@@ -352,7 +352,7 @@ export const rxDataEventToString = (event: RxDataEvent) => {
       titleForFrame(event.scoutFrame) +
       '[SCOUT] ' +
       hexdump(event.dataFrame).join('\n        ') +
-      '[DATA]  ' +
+      '\n[DATA]  ' +
       hexdump(event.dataFrame).join('\n        ')
     );
   }
