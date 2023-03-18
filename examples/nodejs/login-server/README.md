@@ -2,9 +2,12 @@
 
 This example shows how to implement the beginnings of an Econet fileserver by handling a login request (`*I AM` command).
 
+See also the [ecoclient](https://github.com/jprayner/ecoclient) project for more examples of implementing the Econet
+fileserver protocol.
+
 ## Hardware prerequisites
 
-* Build/aquire hardware: https://github.com/jprayner/piconet/tree/main/board
+* Build/acquire hardware: https://github.com/jprayner/piconet/tree/main/board
 * Install the latest firmware onto the board as desribed here: https://github.com/jprayner/piconet#getting-started
 
 ## Software prerequisites
