@@ -9,7 +9,7 @@ async function main() {
       console.error(`ERROR: ${event.description}`);
       return;
     } else if (event instanceof RxDataEvent){
-      console.log(driver.rxDataEventToString(event));
+      console.log(event.toString());
     }
   });
 

@@ -15,6 +15,7 @@ const main = async () => {
     if (event instanceof ErrorEvent) {
       console.log(`ERROR: ${event.description}`);
     } else if (event instanceof RxTransmitEvent) {
+      console.log(event.toString());
       handleReceive(event);
     }
   });

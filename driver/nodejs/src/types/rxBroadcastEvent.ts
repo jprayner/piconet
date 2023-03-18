@@ -1,3 +1,4 @@
+import { hexdump } from '@gct256/hexdump';
 import { RxDataEvent } from './rxDataEvent';
 
 /**
@@ -11,5 +12,13 @@ export class RxBroadcastEvent extends RxDataEvent {
     public econetFrame: Buffer,
   ) {
     super();
+  }
+
+  public toString() {
+    return (
+      this.titleForFrame(this.econetFrame) +
+      '        ' +
+      hexdump(this.econetFrame).join('\n        ')
+    );
   }
 }

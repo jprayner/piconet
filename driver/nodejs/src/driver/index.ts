@@ -1,22 +1,16 @@
-import { hexdump } from '@gct256/hexdump';
 import config from '../config';
 import { PKG_VERSION } from './version';
 import { StatusEvent } from '../types/statusEvent';
 import { EconetEvent } from '../types/econetEvent';
-import { RxDataEvent } from '../types/rxDataEvent';
+import { TxResultEvent } from '../types/txResultEvent';
 import { parseStatusEvent } from '../parser/statusParser';
 import { parseMonitorEvent } from '../parser/monitorParser';
-import { MonitorEvent } from '../types/monitorEvent';
-import { TxResultEvent } from '../types/txResultEvent';
-import { RxImmediateEvent } from '../types/rxImmediateEvent';
-import { RxBroadcastEvent } from '../types/rxBroadcastEvent';
 import { parseErrorEvent } from '../parser/errorParser';
 import { parseRxImmediateEvent } from '../parser/rxImmediateParser';
 import { parseTxResultEvent } from '../parser/txResultParser';
 import { parseRxBroadcastEvent } from '../parser/rxBroadcastParser';
 import { drainAndClose, openPort, writeToPort } from './serial';
 import { areVersionsCompatible, parseSemver } from './semver';
-import { RxTransmitEvent } from '../types/rxTransmitEvent';
 import { parseRxTransmitEvent } from '../parser/rxTransmitParser';
 
 enum ConnectionState {
@@ -321,62 +315,6 @@ export const waitForEvent = async (
 };
 
 /**
- * Returns a string representation of a received data event consisting of:
- *
- * * a title line containing the event type and the source and destination stations
- * * (for `MonitorEvent` and `RxBroadcastEvent`) hex dump of the received frame
- * * (for `RxImmediateEvent` and `RxTransmitEvent`) hex dump of the scout and data frames
- *
- * @param event A subclass of `RxDataEvent`.
- * @returns A string representation of the event.
- */
-export const rxDataEventToString = (event: RxDataEvent) => {
-  const titleForFrame = (frame: Buffer) => {
-    const toStation = frame[0];
-    const toNet = frame[1];
-    const fromStation = frame[2];
-    const fromNet = frame[3];
-    return `${event.constructor.name} ${fromNet}.${fromStation} --> ${toNet}.${toStation}\n`;
-  };
-
-  if (event instanceof MonitorEvent || event instanceof RxBroadcastEvent) {
-    return (
-      titleForFrame(event.econetFrame) +
-      '        ' +
-      hexdump(event.econetFrame).join('\n        ')
-    );
-  }
-
-  if (event instanceof RxImmediateEvent || event instanceof RxTransmitEvent) {
-    return (
-      titleForFrame(event.scoutFrame) +
-      '[SCOUT] ' +
-      hexdump(event.dataFrame).join('\n        ') +
-      '\n[DATA]  ' +
-      hexdump(event.dataFrame).join('\n        ')
-    );
-  }
-
-  throw new Error('Unexpected event type');
-};
-
-const handleData = (data: string) => {
-  if (
-    state !== ConnectionState.Connected &&
-    state !== ConnectionState.Connecting
-  ) {
-    return;
-  }
-
-  parsers.forEach(parser => {
-    const event = parser(data);
-    if (event) {
-      fireListeners(event);
-    }
-  });
-};
-
-/**
  * Queries the current status of the board.
  *
  * @returns The current status of the board.
@@ -395,4 +333,20 @@ export const readStatus = async (): Promise<StatusEvent> => {
     2000,
   );
   return result as StatusEvent;
+};
+
+const handleData = (data: string) => {
+  if (
+    state !== ConnectionState.Connected &&
+    state !== ConnectionState.Connecting
+  ) {
+    return;
+  }
+
+  parsers.forEach(parser => {
+    const event = parser(data);
+    if (event) {
+      fireListeners(event);
+    }
+  });
 };

@@ -1,3 +1,4 @@
+import { hexdump } from '@gct256/hexdump';
 import { RxDataEvent } from './rxDataEvent';
 
 /**
@@ -17,5 +18,15 @@ export class RxImmediateEvent extends RxDataEvent {
     public dataFrame: Buffer,
   ) {
     super();
+  }
+
+  public toString() {
+    return (
+      this.titleForFrame(this.scoutFrame) +
+      '[SCOUT] ' +
+      hexdump(this.scoutFrame).join('\n        ') +
+      '\n[DATA]  ' +
+      hexdump(this.dataFrame).join('\n        ')
+    );
   }
 }
