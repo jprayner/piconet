@@ -8,7 +8,8 @@ async function main() {
     if (event instanceof ErrorEvent) {
       console.error(`ERROR: ${event.description}`);
       return;
-    } else if (event instanceof RxDataEvent){
+    } else if (event instanceof RxDataEvent) {
+      console.log(`Received ${event.constructor.name}`);
       console.log(event.toString());
     }
   });
