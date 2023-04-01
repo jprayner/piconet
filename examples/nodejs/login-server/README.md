@@ -40,8 +40,8 @@ Try executing something like this from a beeb:
 The command should complete successfully and you will see the following on your local machine:
 
 ```
-[SCOUT] 00000000: ab 00 7f 00 90 00 01 02  04 49 20 61 6d 20 4a 50 |«........I am JP|
-        00000010: 52 39 33 20 41 42 43 0d                          |R93 ABC.        |
+RxTransmitEvent 0.127 --> 0.171
+[SCOUT] 00000000: ab 00 7f 00 80 99                                |«.....          |
 [DATA]  00000000: ab 00 7f 00 90 00 01 02  04 49 20 61 6d 20 4a 50 |«........I am JP|
         00000010: 52 39 33 20 41 42 43 0d                          |R93 ABC.        |
 Received OSCLI command="I am JPR93 ABC"

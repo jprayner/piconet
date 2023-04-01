@@ -58,8 +58,8 @@ typedef struct
 
 bool                    econet_init(void);
 econet_tx_result_t      broadcast(
-                            const uint8_t*  buff,
-                            size_t          bytes);
+                            const uint8_t*  data,
+                            size_t          data_len);
 econet_tx_result_t      transmit(
                             uint8_t         station,
                             uint8_t         network,

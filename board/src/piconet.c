@@ -17,7 +17,7 @@
 
 #define VERSION_MAJOR           1
 #define VERSION_MINOR           0
-#define VERSION_REV             0
+#define VERSION_REV             2
 #define VERSION_STR_MAXLEN      16
 
 #define TX_DATA_BUFFER_SZ       3500
@@ -38,6 +38,8 @@
 #define CMD_SET_STATION         "SET_STATION"
 #define CMD_TX                  "TX"
 #define CMD_REPLY               "REPLY"
+#define CMD_BCAST               "BCAST"
+#define CMD_TEST                "TEST"
 
 #define CMD_PARAM_MODE_STOP     "STOP"
 #define CMD_PARAM_MODE_LISTEN   "LISTEN"
@@ -94,7 +96,9 @@ typedef enum {
     PICONET_CMD_SET_MODE,
     PICONET_CMD_SET_STATION,
     PICONET_CMD_TX,
-    PICONET_CMD_REPLY
+    PICONET_CMD_REPLY,
+    PICONET_CMD_BCAST,
+    PICONET_CMD_TEST,
 } cmd_type_t;
 
 typedef struct {
@@ -109,6 +113,11 @@ typedef struct {
 } cmd_tx_t;
 
 typedef struct {
+    uint8_t                 data[TX_DATA_BUFFER_SZ];
+    size_t                  data_len;
+} cmd_bcast_t;
+
+typedef struct {
     uint16_t                reply_id;
     uint8_t                 data[TX_DATA_BUFFER_SZ];
     size_t                  data_len;
@@ -120,6 +129,7 @@ typedef struct {
         piconet_mode_t      set_mode;   // if type == PICONET_CMD_SET_MODE
         cmd_tx_t            tx;         // if type == PICONET_CMD_TX
         cmd_reply_t         reply;      // if type == PICONET_CMD_REPLY
+        cmd_bcast_t         bcast;      // if type == PICONET_CMD_BCAST
         uint8_t             station;    // if type == PICONET_CMD_ACK
     };
 } command_t;
@@ -138,6 +148,7 @@ char*   _rx_error_to_str(econet_rx_error_t error);
 void    _read_command_input(void);
 char*   _encode_base64(char* output_buffer, const char* input, size_t len);
 size_t  _decode_base64(const char* input, char* output_buffer);
+void    _test_board(void);
 
 int main() {
     stdio_init_all();
@@ -324,6 +335,19 @@ void _core1_loop(void) {
                     queue_add_blocking(&event_queue, &event);
                     break;
                 }
+                case PICONET_CMD_BCAST: {
+                    econet_tx_result_t result = broadcast(
+                        received_command.bcast.data,
+                        received_command.bcast.data_len);
+                    event.type = PICONET_TX_EVENT;
+                    event.tx_event_detail.type = result;
+                    queue_add_blocking(&event_queue, &event);
+                    break;
+                }
+                case PICONET_CMD_TEST: {
+                    _test_board();
+                    break;
+                }
             }
         }
 
@@ -452,10 +476,15 @@ void _read_command_input(void) {
             cmd.tx.port = strtol(strtok(NULL, delim), NULL, 10);
             cmd.tx.data_len = _decode_base64(strtok(NULL, delim), cmd.tx.data);
             cmd.tx.scout_extra_data_len = _decode_base64(strtok(NULL, delim), cmd.tx.scout_extra_data);
+        } else if (strcmp(ptr, CMD_BCAST) == 0) {
+            cmd.type = PICONET_CMD_BCAST;
+            cmd.tx.data_len = _decode_base64(strtok(NULL, delim), cmd.tx.data);
         } else if (strcmp(ptr, CMD_REPLY) == 0) {
             cmd.type = PICONET_CMD_REPLY;
             cmd.reply.reply_id = strtol(strtok(NULL, delim), NULL, 10);
             cmd.reply.data_len = _decode_base64(strtok(NULL, delim), cmd.reply.data);
+        } else if (strcmp(ptr, CMD_TEST) == 0) {
+            cmd.type = PICONET_CMD_TEST;
         } else {
             error = true;
         }
@@ -522,5 +551,18 @@ char* _tx_error_to_str(econet_tx_result_t error) {
             return "MISC";
         default:
             return "UNEXPECTED";
+    }
+}
+
+void _test_board() {
+    printf("TESTING BOARD (REBOOT TO STOP)");
+    while (true) {
+        for (uint adlc_register = 0; adlc_register < 4; adlc_register++) {
+            for (uint data_bit = 0; data_bit < 8; data_bit++) {
+                adlc_write(adlc_register, 1 << data_bit);
+            }
+        }
+
+        adlc_reset();
     }
 }

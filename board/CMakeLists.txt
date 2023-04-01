@@ -7,16 +7,16 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 add_executable(piconet
-    piconet.c
-    econet.c
-    adlc.c
-    util.c
-    buffer_pool.c
-    lib/b64/cdecode.c
-    lib/b64/cencode.c
+    src/piconet.c
+    src/econet.c
+    src/adlc.c
+    src/util.c
+    src/buffer_pool.c
+    src/lib/b64/cdecode.c
+    src/lib/b64/cencode.c
 )
 
-pico_generate_pio_header(piconet ${CMAKE_CURRENT_LIST_DIR}/pinctl.pio)
+pico_generate_pio_header(piconet ${CMAKE_CURRENT_LIST_DIR}/src/pinctl.pio)
 
 # pull in common dependencies and additional pwm hardware support
 target_link_libraries(piconet pico_stdlib pico_multicore hardware_pwm hardware_pio)

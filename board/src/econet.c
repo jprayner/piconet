@@ -114,6 +114,26 @@ bool econet_init(void) {
     return true;
 }
 
+econet_tx_result_t broadcast(
+                            const uint8_t*  data,
+                            size_t          data_len) {
+    if (!_initialised) {
+        return PICONET_TX_RESULT_ERROR_UNINITIALISED;
+    }
+
+    size_t data_frame_len = data_len + 4;
+    if (data_frame_len > _tx_data_buffer_sz) {
+        return PICONET_TX_RESULT_ERROR_OVERFLOW;
+    }
+    _tx_data_buffer[0] = 0xff;
+    _tx_data_buffer[1] = 0xff;
+    _tx_data_buffer[2] = _listen_addresses[0];
+    _tx_data_buffer[3] = 0x00;
+    memcpy(_tx_data_buffer + 4, data, data_len);
+
+    return _tx_result_for_frame_status(_tx_frame(_tx_data_buffer, data_frame_len));
+}
+
 econet_tx_result_t transmit(
         uint8_t         station,
         uint8_t         network,
