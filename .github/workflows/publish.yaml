@@ -20,14 +20,14 @@ jobs:
       working-directory: ./board
       run: |
         export PICO_SDK_PATH=/pico-sdk
-        cmake .
-        cmake --build ./
+        cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Debug -S. -B./build
+        cmake --build ./build --config Debug --target piconet -j 12 --
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           README.md
-          ./board/piconet.uf2
+          ./board/build/piconet.uf2
 
   publish-nodejs-driver:
     name: Publish NodeJS driver
