@@ -35,8 +35,8 @@ Fired asynchronously whilst in `LISTEN` mode as broadcast packets are received.
 
 #### Parameters
 
-| Name          | Type     | Description           |
-| :------------ | :------- | :-------------------- |
+| Name | Type | Description |
+| :------ | :------ | :------ |
 | `econetFrame` | `Buffer` | The raw Econet frame. |
 
 #### Overrides
@@ -45,7 +45,7 @@ Fired asynchronously whilst in `LISTEN` mode as broadcast packets are received.
 
 #### Defined in
 
-[types/rxBroadcastEvent.ts:8](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxBroadcastEvent.ts#L8)
+[types/rxBroadcastEvent.ts:8](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxBroadcastEvent.ts#L8)
 
 ## Properties
 
@@ -57,7 +57,7 @@ The raw Econet frame.
 
 #### Defined in
 
-[types/rxBroadcastEvent.ts:12](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxBroadcastEvent.ts#L12)
+[types/rxBroadcastEvent.ts:12](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxBroadcastEvent.ts#L12)
 
 ## Methods
 
@@ -67,8 +67,8 @@ The raw Econet frame.
 
 #### Parameters
 
-| Name    | Type     |
-| :------ | :------- |
+| Name | Type |
+| :------ | :------ |
 | `frame` | `Buffer` |
 
 #### Returns
@@ -81,9 +81,9 @@ The raw Econet frame.
 
 #### Defined in
 
-[types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxDataEvent.ts#L12)
+[types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxDataEvent.ts#L12)
 
----
+___
 
 ### toString
 
@@ -95,4 +95,4 @@ The raw Econet frame.
 
 #### Defined in
 
-[types/rxBroadcastEvent.ts:17](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxBroadcastEvent.ts#L17)
+[types/rxBroadcastEvent.ts:17](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxBroadcastEvent.ts#L17)

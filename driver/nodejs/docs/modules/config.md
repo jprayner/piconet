@@ -16,11 +16,11 @@
 
 #### Type declaration
 
-| Name                      | Type     |
-| :------------------------ | :------- |
+| Name | Type |
+| :------ | :------ |
 | `maxScoutExtraDataLength` | `number` |
-| `maxTxDataLength`         | `number` |
+| `maxTxDataLength` | `number` |
 
 #### Defined in
 
-[config.ts:1](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/config.ts#L1)
+[config.ts:1](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/config.ts#L1)

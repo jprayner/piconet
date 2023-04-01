@@ -27,13 +27,13 @@ received packet fails to parse).
 
 #### Parameters
 
-| Name          | Type     | Description                                |
-| :------------ | :------- | :----------------------------------------- |
+| Name | Type | Description |
+| :------ | :------ | :------ |
 | `description` | `string` | A human-readable description of the error. |
 
 #### Defined in
 
-[types/errorEvent.ts:8](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/errorEvent.ts#L8)
+[types/errorEvent.ts:8](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/errorEvent.ts#L8)
 
 ## Properties
 
@@ -45,4 +45,4 @@ A human-readable description of the error.
 
 #### Defined in
 
-[types/errorEvent.ts:12](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/errorEvent.ts#L12)
+[types/errorEvent.ts:12](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/errorEvent.ts#L12)
