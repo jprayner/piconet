@@ -27,8 +27,8 @@ received packet fails to parse).
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name          | Type     | Description                                |
+| :------------ | :------- | :----------------------------------------- |
 | `description` | `string` | A human-readable description of the error. |
 
 #### Defined in

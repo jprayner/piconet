@@ -6,10 +6,10 @@
 
 Superclass for all events emitted by the Econet driver in response to incoming data:
 
-* [RxImmediateEvent](index.RxImmediateEvent.md)
-* [RxTransmitEvent](index.RxTransmitEvent.md)
-* [RxBroadcastEvent](index.RxBroadcastEvent.md)
-* [MonitorEvent](index.MonitorEvent.md)
+- [RxImmediateEvent](index.RxImmediateEvent.md)
+- [RxTransmitEvent](index.RxTransmitEvent.md)
+- [RxBroadcastEvent](index.RxBroadcastEvent.md)
+- [MonitorEvent](index.MonitorEvent.md)
 
 ## Hierarchy
 
@@ -53,8 +53,8 @@ Superclass for all events emitted by the Econet driver in response to incoming d
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
+| Name    | Type     |
+| :------ | :------- |
 | `frame` | `Buffer` |
 
 #### Returns

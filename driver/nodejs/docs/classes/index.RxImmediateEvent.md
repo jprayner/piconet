@@ -37,10 +37,10 @@ local Econet station.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name         | Type     | Description          |
+| :----------- | :------- | :------------------- |
 | `scoutFrame` | `Buffer` | The raw scout frame. |
-| `dataFrame` | `Buffer` | The raw data frame. |
+| `dataFrame`  | `Buffer` | The raw data frame.  |
 
 #### Overrides
 
@@ -62,7 +62,7 @@ The raw data frame.
 
 [types/rxImmediateEvent.ts:18](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxImmediateEvent.ts#L18)
 
-___
+---
 
 ### scoutFrame
 
@@ -82,8 +82,8 @@ The raw scout frame.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
+| Name    | Type     |
+| :------ | :------- |
 | `frame` | `Buffer` |
 
 #### Returns
@@ -98,7 +98,7 @@ The raw scout frame.
 
 [types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxDataEvent.ts#L12)
 
-___
+---
 
 ### toString
 

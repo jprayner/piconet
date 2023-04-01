@@ -37,8 +37,8 @@ This event is fired regardless of the source or destination of the frame.
 
 #### Parameters
 
-| Name | Type | Description |
-| :------ | :------ | :------ |
+| Name          | Type     | Description           |
+| :------------ | :------- | :-------------------- |
 | `econetFrame` | `Buffer` | The raw Econet frame. |
 
 #### Overrides
@@ -69,8 +69,8 @@ The raw Econet frame.
 
 #### Parameters
 
-| Name | Type |
-| :------ | :------ |
+| Name    | Type     |
+| :------ | :------- |
 | `frame` | `Buffer` |
 
 #### Returns
@@ -85,7 +85,7 @@ The raw Econet frame.
 
 [types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/55ff188/driver/nodejs/src/types/rxDataEvent.ts#L12)
 
-___
+---
 
 ### toString
 

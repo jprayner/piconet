@@ -16,10 +16,10 @@
 
 #### Type declaration
 
-| Name | Type |
-| :------ | :------ |
+| Name                      | Type     |
+| :------------------------ | :------- |
 | `maxScoutExtraDataLength` | `number` |
-| `maxTxDataLength` | `number` |
+| `maxTxDataLength`         | `number` |
 
 #### Defined in
 

@@ -12,15 +12,15 @@ This project provides the purple boxes in the above diagram: the hardware design
 
 ## Related projects
 
-* [ecoclient](https://github.com/jprayner/ecoclient) — a command-line utility for performing Econet operations
+- [ecoclient](https://github.com/jprayner/ecoclient) — a command-line utility for performing Econet operations
 
 ## State of development
 
 This project is still under development. Currently:
 
-* The board currently only exists in prototype form. A circuit diagram is available [here](https://github.com/jprayner/piconet/tree/main/board). It is hoped that a prebuilt board will be available soon.
-* At the moment, a (wired) USB connection is required between the Pico on the Piconet board and the host machine. In the future, this may be extended to allow your machine to connect to a Pico W over a WiFi network.
-* The only driver available today is based on Node.js. Contributions of drivers based on other languages are welcome (Python, Golang etc). Please get in touch if you are interested in writing one! See protocol documentation under the [board subdirectory](https://github.com/jprayner/piconet/tree/main/board).
+- The board currently only exists in prototype form. A circuit diagram is available [here](https://github.com/jprayner/piconet/tree/main/board). It is hoped that a prebuilt board will be available soon.
+- At the moment, a (wired) USB connection is required between the Pico on the Piconet board and the host machine. In the future, this may be extended to allow your machine to connect to a Pico W over a WiFi network.
+- The only driver available today is based on Node.js. Contributions of drivers based on other languages are welcome (Python, Golang etc). Please get in touch if you are interested in writing one! See protocol documentation under the [board subdirectory](https://github.com/jprayner/piconet/tree/main/board).
 
 ## Getting started
 
@@ -35,7 +35,7 @@ This project is still under development. Currently:
 
 Thanks to the following projects:
 
-* Base64 encode/decode code taken from: https://github.com/mbrt/libb64
-* ADF-10 hardware interfacing and Econet protocol insights: https://github.com/cr12925/PiEconetBridge
-* More Econet protocol insights: https://github.com/stardot/ArduinoFilestore
-* General discussion on BBC Micro and Econent topics: https://stardot.org.uk
+- Base64 encode/decode code taken from: https://github.com/mbrt/libb64
+- ADF-10 hardware interfacing and Econet protocol insights: https://github.com/cr12925/PiEconetBridge
+- More Econet protocol insights: https://github.com/stardot/ArduinoFilestore
+- General discussion on BBC Micro and Econent topics: https://stardot.org.uk
