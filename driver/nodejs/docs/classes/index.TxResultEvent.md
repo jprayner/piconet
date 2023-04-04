@@ -42,7 +42,7 @@ Generated in response to a `TRANSMIT` command.
 
 #### Defined in
 
-[types/txResultEvent.ts:7](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/txResultEvent.ts#L7)
+[types/txResultEvent.ts:7](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/txResultEvent.ts#L7)
 
 ## Properties
 
@@ -74,7 +74,7 @@ A description of the result:
 
 #### Defined in
 
-[types/txResultEvent.ts:36](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/txResultEvent.ts#L36)
+[types/txResultEvent.ts:36](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/txResultEvent.ts#L36)
 
 ___
 
@@ -86,4 +86,4 @@ ___
 
 #### Defined in
 
-[types/txResultEvent.ts:11](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/txResultEvent.ts#L11)
+[types/txResultEvent.ts:11](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/txResultEvent.ts#L11)

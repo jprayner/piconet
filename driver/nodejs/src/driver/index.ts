@@ -238,7 +238,7 @@ export const transmit = async (
 
   const result = await waitForEvent(event => {
     return event instanceof TxResultEvent;
-  }, 2000);
+  }, 20000);
   return result as TxResultEvent;
 };
 

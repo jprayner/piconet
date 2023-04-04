@@ -63,4 +63,4 @@ Superclass for all events emitted by the Econet driver in response to incoming d
 
 #### Defined in
 
-[types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxDataEvent.ts#L12)
+[types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/rxDataEvent.ts#L12)

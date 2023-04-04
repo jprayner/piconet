@@ -23,4 +23,4 @@
 
 #### Defined in
 
-[config.ts:1](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/config.ts#L1)
+[config.ts:1](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/config.ts#L1)

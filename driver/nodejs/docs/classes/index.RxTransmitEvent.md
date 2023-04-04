@@ -48,7 +48,7 @@ local Econet station.
 
 #### Defined in
 
-[types/rxTransmitEvent.ts:9](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxTransmitEvent.ts#L9)
+[types/rxTransmitEvent.ts:9](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/rxTransmitEvent.ts#L9)
 
 ## Properties
 
@@ -60,7 +60,7 @@ The raw data frame.
 
 #### Defined in
 
-[types/rxTransmitEvent.ts:17](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxTransmitEvent.ts#L17)
+[types/rxTransmitEvent.ts:17](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/rxTransmitEvent.ts#L17)
 
 ___
 
@@ -72,7 +72,7 @@ The raw scout frame.
 
 #### Defined in
 
-[types/rxTransmitEvent.ts:13](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxTransmitEvent.ts#L13)
+[types/rxTransmitEvent.ts:13](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/rxTransmitEvent.ts#L13)
 
 ## Methods
 
@@ -96,7 +96,7 @@ The raw scout frame.
 
 #### Defined in
 
-[types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxDataEvent.ts#L12)
+[types/rxDataEvent.ts:12](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/rxDataEvent.ts#L12)
 
 ___
 
@@ -110,4 +110,4 @@ ___
 
 #### Defined in
 
-[types/rxTransmitEvent.ts:22](https://github.com/jprayner/piconet/blob/21a31c9/driver/nodejs/src/types/rxTransmitEvent.ts#L22)
+[types/rxTransmitEvent.ts:22](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/rxTransmitEvent.ts#L22)

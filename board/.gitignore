@@ -13,3 +13,4 @@ piconet.elf.map
 piconet.hex
 piconet.uf2
 pioasm
+compile_commands.json
