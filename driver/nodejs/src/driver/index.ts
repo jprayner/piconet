@@ -9,7 +9,7 @@ import { parseErrorEvent } from '../parser/errorParser';
 import { parseRxImmediateEvent } from '../parser/rxImmediateParser';
 import { parseTxResultEvent } from '../parser/txResultParser';
 import { parseRxBroadcastEvent } from '../parser/rxBroadcastParser';
-import { drainAndClose, openPort, writeToPort } from './serial';
+import { drainAndClose, openPort, setDebug, writeToPort } from './serial';
 import { areVersionsCompatible, parseSemver } from './semver';
 import { parseRxTransmitEvent } from '../parser/rxTransmitParser';
 
@@ -158,6 +158,14 @@ export const setEconetStation = async (station: number): Promise<void> => {
 
   await writeToPort(`SET_STATION ${station}\r`);
   await readStatus();
+};
+
+/**
+ * Enables/disables driver debug logging. When enabled, shows the raw data passing between the driver
+ * and the board.
+ */
+export const setDebugEnabled = (enabled: boolean) => {
+  setDebug(enabled);
 };
 
 /**

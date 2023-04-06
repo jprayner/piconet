@@ -4,6 +4,7 @@ import { ReadlineParser } from '@serialport/parser-readline';
 
 export type DataListener = (data: string) => void;
 let port: SerialPort;
+let debug: boolean;
 
 export const openPort = async (
   listener: DataListener,
@@ -25,7 +26,12 @@ export const openPort = async (
       }
 
       const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
-      parser.on('data', data => listener(data as string));
+      parser.on('data', data => {
+        if (debug) {
+          console.debug(data);
+        }
+        listener(data as string);
+      });
 
       resolve();
     });
@@ -52,6 +58,10 @@ export const drainAndClose = async (): Promise<void> => {
 
 export const writeToPort = async (data: string): Promise<void> => {
   return new Promise((resolve, reject) => {
+    if (debug) {
+      console.debug(data);
+    }
+
     port.write(`${data}\r`, err => {
       if (err) {
         reject(`[writeToPort] Error writing '${data}: ${err.message}`);
@@ -71,6 +81,10 @@ export const writeToPort = async (data: string): Promise<void> => {
   });
 };
 
+export const setDebug = (value: boolean): void => {
+  debug = value;
+};
+
 const autoDetectDevice = async (): Promise<string> => {
   const Binding = autoDetect();
   const portInfos = await Binding.list();
@@ -79,7 +93,7 @@ const autoDetectDevice = async (): Promise<string> => {
   );
 
   if (!picoPort) {
-    throw new Error('Failed to find a PICO device');
+    throw new Error('Failed to find a Pico device');
   }
 
   return picoPort.path;
