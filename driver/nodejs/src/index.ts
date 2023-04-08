@@ -9,4 +9,4 @@ export { MonitorEvent } from './types/monitorEvent';
 export { RxImmediateEvent } from './types/rxImmediateEvent';
 export { RxBroadcastEvent } from './types/rxBroadcastEvent';
 export { TxResultEvent } from './types/txResultEvent';
-export { EventMatcher, Listener } from './driver';
+export { EventMatcher, Listener, EventQueue } from './driver';
