@@ -327,9 +327,7 @@ export type EventQueue = {
   listener: Listener;
 };
 
-export const eventQueueCreate = (
-  matcher: EventMatcher,
-): EventQueue => {
+export const eventQueueCreate = (matcher: EventMatcher): EventQueue => {
   const events = new Array<EconetEvent>();
   const listener = (event: EconetEvent) => {
     if (!matcher(event)) {
@@ -345,15 +343,16 @@ export const eventQueueCreate = (
   };
 };
 
-export const eventQueueDestroy = (
-  queue: EventQueue,
-) => {
+export const eventQueueDestroy = (queue: EventQueue) => {
   removeListener(queue.listener);
 };
 
 const sleepMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 
-export const eventQueueWait = async (queue: EventQueue, timeoutMs: number): Promise<EconetEvent> => {
+export const eventQueueWait = async (
+  queue: EventQueue,
+  timeoutMs: number,
+): Promise<EconetEvent> => {
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
     const event = queue.events.shift();
@@ -365,7 +364,6 @@ export const eventQueueWait = async (queue: EventQueue, timeoutMs: number): Prom
 
   throw new Error(`No matching event found within ${timeoutMs}ms`);
 };
-
 
 /**
  * Queries the current status of the board.

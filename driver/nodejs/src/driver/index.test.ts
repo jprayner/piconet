@@ -74,6 +74,7 @@ describe('driver', () => {
   });
 
   it('should return matching event from waitForEvent', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const matcher = (e: EconetEvent) => true;
 
     mockStatusEventFromBoard(0);
@@ -89,6 +90,7 @@ describe('driver', () => {
   });
 
   it('should throw exception from waitForEvent if no matching event', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const matcher = (e: EconetEvent) => false;
 
     mockStatusEventFromBoard(0);
@@ -101,6 +103,7 @@ describe('driver', () => {
   });
 
   it('should correctly queue and return events in order', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const matcher = (e: EconetEvent) => true;
 
     mockStatusEventFromBoard(0);
@@ -123,6 +126,7 @@ describe('driver', () => {
   });
 
   it('should throw exception from eventQueueWait if no matching event', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const matcher = (e: EconetEvent) => false;
 
     mockStatusEventFromBoard(0);
