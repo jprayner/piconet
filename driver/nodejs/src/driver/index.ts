@@ -322,6 +322,51 @@ export const waitForEvent = async (
   });
 };
 
+export type EventQueue = {
+  events: Array<EconetEvent>;
+  listener: Listener;
+};
+
+export const eventQueueCreate = (
+  matcher: EventMatcher,
+): EventQueue => {
+  const events = new Array<EconetEvent>();
+  const listener = (event: EconetEvent) => {
+    if (!matcher(event)) {
+      return;
+    }
+    events.push(event);
+  };
+  addListener(listener);
+
+  return {
+    events,
+    listener,
+  };
+};
+
+export const eventQueueDestroy = (
+  queue: EventQueue,
+) => {
+  removeListener(queue.listener);
+};
+
+const sleepMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+export const eventQueueWait = async (queue: EventQueue, timeoutMs: number): Promise<EconetEvent> => {
+  const startTime = Date.now();
+  while (Date.now() - startTime < timeoutMs) {
+    const event = queue.events.shift();
+    if (event) {
+      return event;
+    }
+    await sleepMs(10);
+  }
+
+  throw new Error(`No matching event found within ${timeoutMs}ms`);
+};
+
+
 /**
  * Queries the current status of the board.
  *

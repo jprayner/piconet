@@ -5,8 +5,13 @@ import {
   addListener,
   setEconetStation,
   removeListener,
+  waitForEvent,
+  eventQueueCreate,
+  eventQueueWait,
+  eventQueueDestroy,
 } from '.';
 import { EconetEvent } from '../types/econetEvent';
+import { StatusEvent } from '../types/statusEvent';
 import { openPort, writeToPort } from './serial';
 import { PKG_VERSION } from './version';
 
@@ -65,6 +70,72 @@ describe('driver', () => {
     await connect();
 
     expect(event).toBeUndefined();
+    await close();
+  });
+
+  it('should return matching event from waitForEvent', async () => {
+    const matcher = (e: EconetEvent) => true;
+
+    mockStatusEventFromBoard(0);
+    await connect();
+
+    mockStatusEventFromBoard(1);
+    const event = await waitForEvent(matcher, 1000);
+
+    expect(event).toBeDefined();
+    expect(event instanceof StatusEvent && event.rxMode === 1).toBeTruthy();
+
+    await close();
+  });
+
+  it('should throw exception from waitForEvent if no matching event', async () => {
+    const matcher = (e: EconetEvent) => false;
+
+    mockStatusEventFromBoard(0);
+    await connect();
+
+    mockStatusEventFromBoard(1);
+    await expect(waitForEvent(matcher, 1000)).rejects.toThrowError();
+
+    await close();
+  });
+
+  it('should correctly queue and return events in order', async () => {
+    const matcher = (e: EconetEvent) => true;
+
+    mockStatusEventFromBoard(0);
+    await connect();
+    const dataHandlerFunc = openPortMock.mock.calls[0][0];
+
+    const queue = eventQueueCreate(matcher);
+
+    dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 1\r`);
+    dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 2\r`);
+
+    const event1 = await eventQueueWait(queue, 1000);
+    const event2 = await eventQueueWait(queue, 1000);
+
+    expect(event1 instanceof StatusEvent && event1.rxMode === 1).toBeTruthy();
+    expect(event2 instanceof StatusEvent && event2.rxMode === 2).toBeTruthy();
+
+    eventQueueDestroy(queue);
+    await close();
+  });
+
+  it('should throw exception from eventQueueWait if no matching event', async () => {
+    const matcher = (e: EconetEvent) => false;
+
+    mockStatusEventFromBoard(0);
+    await connect();
+    const dataHandlerFunc = openPortMock.mock.calls[0][0];
+
+    const queue = eventQueueCreate(matcher);
+
+    dataHandlerFunc(`STATUS ${PKG_VERSION} 2 00 1\r`);
+
+    await expect(eventQueueWait(queue, 1000)).rejects.toThrowError();
+
+    eventQueueDestroy(queue);
     await close();
   });
 
