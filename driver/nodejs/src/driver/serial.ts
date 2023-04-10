@@ -89,7 +89,9 @@ const autoDetectDevice = async (): Promise<string> => {
   const Binding = autoDetect();
   const portInfos = await Binding.list();
   const picoPort = portInfos.find(
-    portInfo => portInfo.vendorId === '2e8a' && portInfo.productId === '000a',
+    portInfo => 
+      (portInfo.vendorId && portInfo.vendorId.toLowerCase() === '2e8a')
+      && (portInfo.productId && portInfo.productId.toLowerCase() === '000a'),
   );
 
   if (!picoPort) {
