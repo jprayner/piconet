@@ -18,7 +18,7 @@
 #define VERSION_MAJOR           1
 #define VERSION_MINOR           0
 #define VERSION_REV             15
-#define VERSION_STR_MAXLEN      16
+#define VERSION_STR_MAXLEN      17
 
 #define TX_DATA_BUFFER_SZ       3500
 #define RX_DATA_BUFFER_SZ       16536                       // TODO: make this dynamic
