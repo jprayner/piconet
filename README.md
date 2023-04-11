@@ -137,7 +137,7 @@ git submodule update --init
 
 ### Building
 
-Run the following from this directory (`board`):
+Run the following from the `board` directory of this project:
 
 ```
 export PICO_SDK_PATH=...  # set to directory created in previous step
