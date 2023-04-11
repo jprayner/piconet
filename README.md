@@ -112,13 +112,11 @@ There are three modes of operation:
   - events received from Core 1 on the event FIFO queue are marshalled and sent on to the host
 * [Core 1](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) does the following:
   - receives commands from the command FIFO
-  - handles the broadcast, transmit and receive Econet primitives [in the econet.c module](https://github.com/jprayner/piconet/blob/main/board/src/econet.c)
-  - generates the appropriate signals to read and write from ADLC registers [in the adlc.c module](https://github.com/jprayner/piconet/blob/main/board/src/adlc.c)
-  - services ADLC interrupts
+  - handles the broadcast, transmit and receive Econet primitives and services ADLC interrupts in the [econet.c](https://github.com/jprayner/piconet/blob/main/board/src/econet.c) module
+  - generates the appropriate signals to read and write from ADLC registers in the [adlc.c](https://github.com/jprayner/piconet/blob/main/board/src/adlc.c) module
   - generates events and places them on the event FIFO
-  - source code for core 1 may also be found in [piconet.c](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c)
 * The FIFO queues are used to synchronise communication between the two cores and to queue (the sometimes bursty) events coming out of core 1
-* The FIFO queues are supplemented with a [buffer pool](https://github.com/jprayner/piconet/blob/main/board/src/buffer_pool.c) to hold data frames in shared memory
+* Shared Memory is used by a [buffer pool](https://github.com/jprayner/piconet/blob/main/board/src/buffer_pool.c) to hold data frames in shared memory
 * The [PIO state machine](https://github.com/jprayner/piconet/blob/main/board/src/pinctl.pio) handles the time-critical signals `!CS` (a.k.a. `!ADLC`), `R!W` and the data bus
   - some information on signal timing [may be found here](https://github.com/jprayner/piconet/tree/main/board#adlc-signals--timing)
 
