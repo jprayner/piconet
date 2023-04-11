@@ -34,6 +34,8 @@ This project is still under development. Currently:
 
 This section describes the serial protocol between the board and driver.
 
+Piconet protocol overview:
+
 * Serial, text based protocol
   - human-readable
   - base64 encoding used for binary data (reasonably efficient in terms of CPU usage and data transferred)
@@ -46,8 +48,8 @@ This section describes the serial protocol between the board and driver.
   - ...or asynchronously e.g. `ERROR`, `RX_xxx`, `MONITOR`
 * One command/event per line
   - aids recovery from reconnection
-* Semantic versioning
-  - determines compatibility between firmware, drivers and apps
+* Utilises semantic versioning
+  - determines compatibility between firmware and drivers/apps
 
 ### Operation modes
 
@@ -105,21 +107,19 @@ There are three modes of operation:
 
 ![functional-blocks](https://user-images.githubusercontent.com/909745/231214910-3fbc5c10-7e8f-45a0-8739-1eb8ad7ed1c4.png)
 
-* Core 0 handles serial I/O, leaving Core 1 free for more time-critical tasks:
+* [Core 0](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) handles serial I/O, leaving Core 1 free for more time-critical tasks:
   - commands received from the host over the serial interface are put onto the command FIFO queue
   - events received from Core 1 on the event FIFO queue are marshalled and sent on to the host
-  - source code for core 0 may be found in [piconet.c](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c)
-* Core 1 does the following:
+* [Core 1](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) does the following:
   - receives commands from the command FIFO
   - handles the broadcast, transmit and receive Econet primitives [in the econet.c module](https://github.com/jprayner/piconet/blob/main/board/src/econet.c)
   - generates the appropriate signals to read and write from ADLC registers [in the adlc.c module](https://github.com/jprayner/piconet/blob/main/board/src/adlc.c)
   - services ADLC interrupts
   - generates events and places them on the event FIFO
   - source code for core 1 may also be found in [piconet.c](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c)
-* The FIFO queues are used to synchronise communication between the two cores and to queue — sometimes bursty — events coming out of core 1
-* The FIFO queues are supplemented with a buffer pool to hold data frames
-* The PIO state machine handles the time-critical signals `!CS` (a.k.a. `!ADLC`), `R!W` and the data bus
-  - its source code [can be found in pinctl.pio](https://github.com/jprayner/piconet/blob/main/board/src/pinctl.pio)
+* The FIFO queues are used to synchronise communication between the two cores and to queue (the sometimes bursty) events coming out of core 1
+* The FIFO queues are supplemented with a [buffer pool](https://github.com/jprayner/piconet/blob/main/board/src/buffer_pool.c) to hold data frames in shared memory
+* The [PIO state machine](https://github.com/jprayner/piconet/blob/main/board/src/pinctl.pio) handles the time-critical signals `!CS` (a.k.a. `!ADLC`), `R!W` and the data bus
   - some information on signal timing [may be found here](https://github.com/jprayner/piconet/tree/main/board#adlc-signals--timing)
 
 ## Building firmware from source
