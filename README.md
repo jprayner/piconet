@@ -72,7 +72,7 @@ There are three modes of operation:
 | `SET_STATION ${num}` | Sets the Econet station number for the board so that `RX_xxx` events are fired in response to frames relevant to this station. `num` should be specified as a decimal integer in range 1-254 (254 is usually reserved for an Econet fileserver). |
 | `TX ${station} ${network} ${controlByte} ${port} ${data}` | Sends an Econet packet (through the exchange of a sequence of frames between client and server which consitute the "four-way handshake": scout, scout ack, data, ack). All parameters are decimal integers except for `data` which is base64 encoded. `station` and `network` identify the destination station; `controlByte` and `port` help the recipient classify the incoming packet; `data` is the body of the message. A `TX_RESULT` event is generated in response to this command.
 | `BCAST ${data}`       | The single `data` parameter is base64 encoded. This shall be sent with destination station/network octets both set to `0xff` and the configured econet station number as the source address. A `TX_RESULT` event is generated in response to this command. |
-| `TEST`                | Used to test hardware **with ADF10 Econet module disconnected**. See "Prototype" section above. |
+| `TEST`                | Used to test hardware (with the device disconnected from the Econet, and generally the ADF10 Econet module too). See the [Hardware testing](https://github.com/jprayner/piconet/tree/main/board#hardware-testing) section of the documentation.|
 
 ### Events
 
