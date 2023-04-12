@@ -1,12 +1,7 @@
 import { EconetEvent } from './econetEvent';
 
 /**
- * Superclass for all events emitted by the Econet driver in response to incoming data:
- *
- * * {@link RxImmediateEvent}
- * * {@link RxTransmitEvent}
- * * {@link RxBroadcastEvent}
- * * {@link MonitorEvent}
+ * Superclass for events emitted by the Econet driver in response to incoming data.
  */
 export class RxDataEvent extends EconetEvent {
   protected titleForFrame(frame: Buffer) {

@@ -31,6 +31,14 @@ export type Listener = (event: EconetEvent) => void;
  */
 export type EventMatcher = (event: EconetEvent) => boolean;
 
+/**
+ * Holds an ordered set of events.
+ */
+export type EventQueue = {
+  events: Array<EconetEvent>;
+  listener: Listener;
+};
+
 const parsers = [
   parseStatusEvent,
   parseErrorEvent,
@@ -322,11 +330,16 @@ export const waitForEvent = async (
   });
 };
 
-export type EventQueue = {
-  events: Array<EconetEvent>;
-  listener: Listener;
-};
-
+/**
+ * Creates an event queue to store all events matching the specified criteria, ready for
+ * collection at the caller's convenience.
+ *
+ * The queue should be destroyed using {@link eventQueueDestroy} when it is no longer needed
+ * to avoid consuming memory unnecessarily.
+ *
+ * @param matcher Specifies which events should be stored in the queue.
+ * @returns A queue object which can be passed to the other `eventQueueXXX` functions.
+ */
 export const eventQueueCreate = (matcher: EventMatcher): EventQueue => {
   const events = new Array<EconetEvent>();
   const listener = (event: EconetEvent) => {
@@ -343,12 +356,24 @@ export const eventQueueCreate = (matcher: EventMatcher): EventQueue => {
   };
 };
 
+/**
+ * Removes all events from queue and removes listener, preventing new events from being added.
+ *
+ * @param queue The queue to destroy.
+ */
 export const eventQueueDestroy = (queue: EventQueue) => {
   removeListener(queue.listener);
+  queue.events.splice(0);
 };
 
-const sleepMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
+/**
+ * Waits for a matching event with a timeout, removing it from the queue.
+ *
+ * If no matching event is found within the specified timeout then an error is thrown.
+ *
+ * @param queue The queue to wait on.
+ * @param timeoutMs Maximum time to wait for a matching event in milliseconds.
+ */
 export const eventQueueWait = async (
   queue: EventQueue,
   timeoutMs: number,
@@ -363,6 +388,17 @@ export const eventQueueWait = async (
   }
 
   throw new Error(`No matching event found within ${timeoutMs}ms`);
+};
+
+/**
+ * Removes an event from the queue, if one is available. Otherwise returns `undefined`.
+ *
+ * @param queue Queue to shift from.
+ */
+export const eventQueueShift = (
+  queue: EventQueue,
+): EconetEvent | undefined => {
+  return queue.events.shift();
 };
 
 /**
@@ -401,3 +437,5 @@ const handleData = (data: string) => {
     }
   });
 };
+
+const sleepMs = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
