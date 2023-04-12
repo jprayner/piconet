@@ -1,5 +1,3 @@
-@jprayner/piconet-nodejs / [Modules](modules.md)
-
 # NodeJS driver for Piconet
 
 Piconet allows modern computers (MacOS, PC and Linux) to talk to Acorn Econet networks using a board which interfaces the ADF10 Econet module (BBC Master/Archimedes Econet board) to a Raspberry Pi Pico. The Pico can then be connected to your machine via USB.
@@ -256,6 +254,9 @@ The following are recommended reading to learn more about Econet programming and
 * The Econet System User Guide
 * Source code for the [ecoclient](https://github.com/jprayner/ecoclient) project
 
+
 ## Sending data
 
 The [transmit](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#transmit) function implements the Econet `TRANSMIT` operation by carrying out the sender's role in the four-way handshake.
+
+

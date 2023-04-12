@@ -1,14 +1,14 @@
-[@jprayner/piconet-nodejs](../README.md) / [Modules](../modules.md) / [index](../modules/index.md) / TxResultEvent
+[@jprayner/piconet-nodejs](../README.md) / [Modules](../modules.md) / [types/txResultEvent](../modules/types_txResultEvent.md) / TxResultEvent
 
 # Class: TxResultEvent
 
-[index](../modules/index.md).TxResultEvent
+[types/txResultEvent](../modules/types_txResultEvent.md).TxResultEvent
 
 Generated in response to a `TRANSMIT` command.
 
 ## Hierarchy
 
-- [`EconetEvent`](index.EconetEvent.md)
+- [`EconetEvent`](types_econetEvent.EconetEvent.md)
 
   ↳ **`TxResultEvent`**
 
@@ -16,12 +16,12 @@ Generated in response to a `TRANSMIT` command.
 
 ### Constructors
 
-- [constructor](index.TxResultEvent.md#constructor)
+- [constructor](types_txResultEvent.TxResultEvent.md#constructor)
 
 ### Properties
 
-- [description](index.TxResultEvent.md#description)
-- [success](index.TxResultEvent.md#success)
+- [description](types_txResultEvent.TxResultEvent.md#description)
+- [success](types_txResultEvent.TxResultEvent.md#success)
 
 ## Constructors
 
@@ -38,11 +38,11 @@ Generated in response to a `TRANSMIT` command.
 
 #### Overrides
 
-[EconetEvent](index.EconetEvent.md).[constructor](index.EconetEvent.md#constructor)
+[EconetEvent](types_econetEvent.EconetEvent.md).[constructor](types_econetEvent.EconetEvent.md#constructor)
 
 #### Defined in
 
-[types/txResultEvent.ts:7](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/txResultEvent.ts#L7)
+[types/txResultEvent.ts:7](https://github.com/jprayner/piconet/blob/81026b7/driver/nodejs/src/types/txResultEvent.ts#L7)
 
 ## Properties
 
@@ -74,7 +74,7 @@ A description of the result:
 
 #### Defined in
 
-[types/txResultEvent.ts:36](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/txResultEvent.ts#L36)
+[types/txResultEvent.ts:36](https://github.com/jprayner/piconet/blob/81026b7/driver/nodejs/src/types/txResultEvent.ts#L36)
 
 ___
 
@@ -86,4 +86,4 @@ ___
 
 #### Defined in
 
-[types/txResultEvent.ts:11](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/txResultEvent.ts#L11)
+[types/txResultEvent.ts:11](https://github.com/jprayner/piconet/blob/81026b7/driver/nodejs/src/types/txResultEvent.ts#L11)

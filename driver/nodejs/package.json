@@ -19,7 +19,7 @@
     "test": "jest --no-cache --runInBand --detectOpenHandles --coverage --config=jest.config.js",
     "lint": "prettier --check . && eslint . --ext .ts,.js",
     "lint:fix": "prettier --write . && eslint --fix . --ext .ts,.js",
-    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs src/**"
+    "docs": "typedoc --plugin typedoc-plugin-markdown --out docs src/**/*.ts"
   },
   "publishConfig": {
     "access": "public"

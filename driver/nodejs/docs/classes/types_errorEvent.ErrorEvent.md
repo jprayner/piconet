@@ -1,8 +1,8 @@
-[@jprayner/piconet-nodejs](../README.md) / [Modules](../modules.md) / [index](../modules/index.md) / ErrorEvent
+[@jprayner/piconet-nodejs](../README.md) / [Modules](../modules.md) / [types/errorEvent](../modules/types_errorEvent.md) / ErrorEvent
 
 # Class: ErrorEvent
 
-[index](../modules/index.md).ErrorEvent
+[types/errorEvent](../modules/types_errorEvent.md).ErrorEvent
 
 Fired by the firmware to indicate that an error has occurred.
 
@@ -13,11 +13,11 @@ received packet fails to parse).
 
 ### Constructors
 
-- [constructor](index.ErrorEvent.md#constructor)
+- [constructor](types_errorEvent.ErrorEvent.md#constructor)
 
 ### Properties
 
-- [description](index.ErrorEvent.md#description)
+- [description](types_errorEvent.ErrorEvent.md#description)
 
 ## Constructors
 
@@ -33,7 +33,7 @@ received packet fails to parse).
 
 #### Defined in
 
-[types/errorEvent.ts:8](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/errorEvent.ts#L8)
+[types/errorEvent.ts:8](https://github.com/jprayner/piconet/blob/81026b7/driver/nodejs/src/types/errorEvent.ts#L8)
 
 ## Properties
 
@@ -45,4 +45,4 @@ A human-readable description of the error.
 
 #### Defined in
 
-[types/errorEvent.ts:12](https://github.com/jprayner/piconet/blob/aed9c79/driver/nodejs/src/types/errorEvent.ts#L12)
+[types/errorEvent.ts:12](https://github.com/jprayner/piconet/blob/81026b7/driver/nodejs/src/types/errorEvent.ts#L12)
