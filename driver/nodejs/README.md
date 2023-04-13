@@ -243,9 +243,49 @@ The first four octets of the data frame are:
 
 The remainder of the frame is dependent on the operation being performed. Given the memory limitations of devices at the time, data frames are typically a couple of kilobytes or less in length. Some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode).
 
+### Example TRANSMIT operation
+
+To illustrate the above, the following `*DIR` CLI call was captured using `ecoclient monitor`:
+
+```
+MonitorEvent 0.168 --> 0.1
+        00000000: 01 00 a8 00 80 99                                |..¨...          |
+MonitorEvent 0.1 --> 0.168
+        00000000: a8 00 01 00                                      |¨...            |
+MonitorEvent 0.168 --> 0.1
+        00000000: 01 00 a8 00 90 00 01 02  04 44 49 52 0d          |..¨......DIR.   |
+MonitorEvent 0.1 --> 0.168
+        00000000: a8 00 01 00                                      |¨...            |
+```
+
+* The first frame is the scout from station 168 (0xa8) to station 1 (the fileserver)
+  - Control byte 0x80 (a fileserver operation)
+  - Port 0x99 (the well-known `COMMAND` port)
+* The fileserver sends an acknowledgement frame back to the client
+* The client proceeds by sending the body of the message to the server in a data frame
+   - details of message not pertinent to this discussion but note the text `DIR` of the command appearing in th
+   - for more information on the fileserver protocol, refer to The Econet System User Guide or browse the [ecoclient source code](https://github.com/jprayner/ecoclient)
+* The fileserver sends an acknowledgement frame back to the client
+
 ### Broadcast frames
 
-TODO
+A broadcast frame looks much like a scout:
+
+1. Destination station number (always 255 to indicate a broadcast)
+2. Destination network number (always 255 to indicate a broadcast)
+3. Source station number
+4. Source network number
+5. Control byte
+6. Port number
+
+This is typically followed by 8 bytes of data. More are possible but this causes problems on certain Econet stacks.
+
+Here's a capture of a bridge solicitation broadcast message, sent by a BBC Master when `BREAK` is pressed:
+
+```
+MonitorEvent 0.168 --> 255.255
+        00000000: ff ff a8 00 82 9c 42 52  49 44 47 45 9c 00       |ÿÿ¨...BRIDGE..  |
+```
 
 ### Further reading
 
