@@ -397,9 +397,7 @@ export const eventQueueWait = async (
  *
  * @param queue Queue to shift from.
  */
-export const eventQueueShift = (
-  queue: EventQueue,
-): EconetEvent | undefined => {
+export const eventQueueShift = (queue: EventQueue): EconetEvent | undefined => {
   return queue.events.shift();
 };
 

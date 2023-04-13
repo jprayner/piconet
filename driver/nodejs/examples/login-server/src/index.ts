@@ -1,9 +1,9 @@
 import { driver, ErrorEvent } from '@jprayner/piconet-nodejs';
 import { RxTransmitEvent } from '@jprayner/piconet-nodejs';
 
-const localStationNum = 171;  // Make sure this is unique on your Econet network!
-const controlByte = 0x80;     // Identifies Econet file server packets
-const port = 0x99;            // Econet file server listen port
+const localStationNum = 171; // Make sure this is unique on your Econet network!
+const controlByte = 0x80; // Identifies Econet file server packets
+const port = 0x99; // Econet file server listen port
 
 const stripCRs = (str: string) => str.replace(/\r/g, '');
 
@@ -11,7 +11,7 @@ const main = async () => {
   console.log('Connecting to board...');
   await driver.connect();
 
-  driver.addListener((event) => {
+  driver.addListener(event => {
     if (event instanceof ErrorEvent) {
       console.log(`ERROR: ${event.description}`);
     } else if (event instanceof RxTransmitEvent) {
@@ -31,7 +31,7 @@ const main = async () => {
     await driver.close();
     process.exit();
   });
-}
+};
 
 const handleReceive = async (event: RxTransmitEvent) => {
   const scout = parseScoutFrame(event.scoutFrame);
@@ -53,7 +53,9 @@ const handleReceive = async (event: RxTransmitEvent) => {
 
   const replyPort = data[0];
   const command = data.subarray(5);
-  console.log(`Received OSCLI command="${stripCRs(command.toString('ascii'))}"`);
+  console.log(
+    `Received OSCLI command="${stripCRs(command.toString('ascii'))}"`,
+  );
 
   // issue a dummy successful reply
   const txResult = await driver.transmit(
@@ -68,8 +70,9 @@ const handleReceive = async (event: RxTransmitEvent) => {
       0x02, // currently selected dir handle
       0x04, // library dir handle
       0x00, // boot option (0 = none)
-    ]));
-  
+    ]),
+  );
+
   if (txResult.success) {
     console.log('Successfully sent reply');
   } else {
@@ -89,7 +92,7 @@ const parseScoutFrame = (scoutFrame: Buffer) => {
     fromNetwork: scoutFrame[3],
     controlByte: scoutFrame[4],
     port: scoutFrame[5],
-  }
+  };
 };
 
 const parseData = (dataFrame: Buffer) => {

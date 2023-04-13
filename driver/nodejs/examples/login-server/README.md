@@ -7,12 +7,12 @@ fileserver protocol.
 
 ## Hardware prerequisites
 
-* Build/acquire hardware: https://github.com/jprayner/piconet/tree/main/board
-* Install the latest firmware onto the board as desribed here: https://github.com/jprayner/piconet#getting-started
+- Build/acquire hardware: https://github.com/jprayner/piconet/tree/main/board
+- Install the latest firmware onto the board as desribed here: https://github.com/jprayner/piconet#getting-started
 
 ## Software prerequisites
 
-* Install the latest version of NodeJS: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
+- Install the latest version of NodeJS: https://docs.npmjs.com/downloading-and-installing-node-js-and-npm
 
 ## Install dependencies & run
 
@@ -49,4 +49,3 @@ Successfully sent reply
 ```
 
 Hit ctrl+c to exit gracefully.
-

@@ -4,7 +4,7 @@ async function main() {
   console.log('Connecting to board...');
   await driver.connect();
 
-  driver.addListener((event) => {
+  driver.addListener(event => {
     if (event instanceof ErrorEvent) {
       console.error(`ERROR: ${event.description}`);
       return;

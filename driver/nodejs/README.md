@@ -8,8 +8,8 @@ This library simplifies the use of Piconet for NodeJS apps written in JavaScript
 
 Piconet works with JavaScript or TypeScript NodeJS apps with:
 
-* Node version 14 and above
-* NPM version 6 and above
+- Node version 14 and above
+- NPM version 6 and above
 
 ## Installing
 
@@ -80,9 +80,9 @@ By default, the `connect` function will attempt to autodetect the correct serial
 
 The `connect` function will throw an error if it fails to communicate with the board. Some common reasons for this:
 
-* Piconet board is not connected
-* Pico device has not been flashed with the Piconet firmware — see [Getting started](https://github.com/jprayner/piconet#getting-started)
-* The firmware version loaded into the Pico is not compatible with device driver version (i.e. major/minor version parts don't match) - update the firmware and/or driver version to make them match
+- Piconet board is not connected
+- Pico device has not been flashed with the Piconet firmware — see [Getting started](https://github.com/jprayner/piconet#getting-started)
+- The firmware version loaded into the Pico is not compatible with device driver version (i.e. major/minor version parts don't match) - update the firmware and/or driver version to make them match
 
 The error description should provide additional clues.
 
@@ -155,7 +155,7 @@ const queue = driver.eventQueueCreate(
 
 while (!done) {
   const rxTransmitEvent = await driver.eventQueueWait(queue, 1000);
-  
+
   // do some processing
 }
 
@@ -251,13 +251,10 @@ TODO
 
 The following are recommended reading to learn more about Econet programming and file server protocols:
 
-* Acorn Econet Advanced User Guide
-* The Econet System User Guide
-* Source code for the [ecoclient](https://github.com/jprayner/ecoclient) project
-
+- Acorn Econet Advanced User Guide
+- The Econet System User Guide
+- Source code for the [ecoclient](https://github.com/jprayner/ecoclient) project
 
 ## Sending data
 
 The [transmit](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#transmit) function implements the Econet `TRANSMIT` operation by carrying out the sender's role in the four-way handshake.
-
-
