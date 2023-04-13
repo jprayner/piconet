@@ -107,7 +107,7 @@ const matcher = (event: EconetEvent) => true;
 Matchers can be as complex as you like. Perhaps you are only interested in `TRANSMIT` operations received from a particular station with a particular control byte and port:
 
 ```
-  const matcher = (event : EconetEvent) => { // leave off ": EconetEvent" if you're using JS
+  const matcher = (event : EconetEvent) => { // leave off ": EconetEvent" if you're using JavaScript rather than TypeScript
     const result =
       event instanceof RxTransmitEvent &&
       event.scoutFrame.length >= 6 &&
@@ -121,11 +121,11 @@ Matchers can be as complex as you like. Perhaps you are only interested in `TRAN
 
 Note that, because events are defined as classes, you can use the `instanceof` operator to differentiate them at runtime.
 
-**Tip:** received data events (subclasses of (RxDataEvent)[https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/classes/index.RxDataEvent.md]) provide hex dumps of scout/data frames, as appropriate, in their `toString()` implementations. So doing `console.log(event.toString());` can be a useful debugging tool!
+**Tip:** received data events (subclasses of [RxDataEvent](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/classes/index.RxDataEvent.md)) provide hex dumps of scout/data frames, as appropriate, in their `toString()` implementations. So doing `console.log(event.toString());` can be a useful debugging tool!
 
 ### waitForEvent
 
-[waitForEvent](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#waitforevent) is an async function (returns a promise of an `EconetEvent`) which waits for a certain period of time for a matching event to occur. It is simple to use and perfect for simple request/response type operations like `NOTIFY`.
+[waitForEvent](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#waitforevent) is an async function (returns a promise of an `EconetEvent`) which waits for a certain period of time for a matching event to occur. It is simple to use and perfect for simple request/response type operations.
 
 ```
 import { driver } from '@jprayner/piconet-nodejs';
@@ -150,8 +150,7 @@ import { driver, RxTransmitEvent } from '@jprayner/piconet-nodejs';
 ... initialise board etc. ...
 
 const queue = driver.eventQueueCreate(
-  (event) => event instanceof RxTransmitEvent,
-  1000
+  (event) => event instanceof RxTransmitEvent
 );
 
 while (!done) {
@@ -205,7 +204,9 @@ The Econet `TRANSMIT` operation is a key building block for a wide variety of Ec
 1. the transmitting station sends a "scout" frame to the recipient, including a control byte (to indicate the type of traffic) and a port number
 2. the recipient sends an acknowledgement frame back to the transmitting station (assuming it is listening and knows how to handle the control byte/port combination)
 3. the transmitting station sends a "data" frame containing the body of the message
-4. the recipient sends another acknowledgement frame 
+4. the recipient sends another acknowledgement frame
+
+This provides a reasonably robust mechanism for sending data and is handled by the driver's [transmit](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#transmit) function. A failure of the caller to receive an "ACK" in steps [2] or [3] will often result in a limited number of back-offs and retries, although such mechanisms are application-dependant and out-of-scope here.
 
 ### Scout frame format
 
@@ -222,7 +223,7 @@ Again, the values of [5] and [6] depend on the type of traffic. In some exceptio
 
 ### Acknowledgement frame format
 
-An acknowledgement frame is dead simple (note that destination in this case is the sender of the scout frame, because the frame is being sent in the opposite direction):
+An acknowledgement frame is dead simple (note that destination in this case is the sender of the scout frame, because the frame is being sent in the opposite direction; in other words, source and destination are swapped):
 
 1. Destination station number
 2. Destination network number

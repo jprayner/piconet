@@ -38,18 +38,19 @@ Piconet protocol overview:
 
 * Serial, text based protocol
   - human-readable
-  - base64 encoding used for binary data (reasonably efficient in terms of CPU usage and data transferred)
-* Commands are sent by host machine
+  - base64 encoding used for binary data (a decent trade-off between CPU efficiency (i.e. effort to encode/decode) and informational efficiency (i.e. size of data to exchange vs. that transferred over the wire)
+* _Commands_ are sent by host machine such as:
   - status command
   - configuration commands
-  - transmit command
-* Events are sent by board
-  - in response to commands e.g. `TX_RESULT`
+  - transmit command (e.g. `TX`)
+* _Events_ are sent by board e.g.:
+  - `TX_RESULT` in response to `TX` commands
   - ...or asynchronously e.g. `ERROR`, `RX_xxx`, `MONITOR`
 * One command/event per line
-  - aids recovery from reconnection
+  - aids recovery from reconnection (firmware keeps on running whilst apps start/stop/error)
 * Utilises semantic versioning
   - determines compatibility between firmware and drivers/apps
+  - allows apps/driver to signal to user that firmware or driver/app needs to upgrade before things get weird
 
 ### Operation modes
 
@@ -107,7 +108,7 @@ There are three modes of operation:
 
 ![functional-blocks](https://user-images.githubusercontent.com/909745/231214910-3fbc5c10-7e8f-45a0-8739-1eb8ad7ed1c4.png)
 
-* [Core 0](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) handles serial I/O, leaving Core 1 free for more time-critical tasks:
+* [Core 0](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) handles serial I/O, leaving Core 1 free for more time-sensitive tasks. It does the following:
   - commands received from the host over the serial interface are put onto the command FIFO queue
   - events received from Core 1 on the event FIFO queue are marshalled and sent on to the host
 * [Core 1](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) does the following:

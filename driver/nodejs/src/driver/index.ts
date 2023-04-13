@@ -28,6 +28,8 @@ export type Listener = (event: EconetEvent) => void;
 
 /**
  * Use to filter events from the Econet driver.
+ * @param event The event to test.
+ * @returns `true` if the event should be processed, `false` otherwise.
  */
 export type EventMatcher = (event: EconetEvent) => boolean;
 

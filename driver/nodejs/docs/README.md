@@ -6,9 +6,9 @@ Piconet allows modern computers (MacOS, PC and Linux) to talk to Acorn Econet ne
 
 This library simplifies the use of Piconet for NodeJS apps written in JavaScript or TypeScript. It handles serial communication with the board and provides facilities to make life easier when dealing with asynchronous events. That said, it is actually a really thin layer over the [board's own protocol](https://github.com/jprayner/piconet#protocol-overview).
 
-## Pre-requisites
+## Prerequisites
 
-Piconet works with JavaScript or TypeScript NodeJS apps with:
+Piconet works with both JavaScript- and TypeScript-based NodeJS projects. It requires:
 
 * Node version 14 and above
 * NPM version 6 and above
@@ -127,7 +127,7 @@ Note that, because events are defined as classes, you can use the `instanceof` o
 
 ### waitForEvent
 
-[waitForEvent](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#waitforevent) is an async function (returns a promise of an `EconetEvent`) which waits for a certain period of time for a matching event to occur. It is simple to use and perfect for simple request/response type operations like `NOTIFY`.
+[waitForEvent](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#waitforevent) is an async function (returns a promise of an `EconetEvent`) which waits for a certain period of time for a matching event to occur. It is easy to use and perfect for simple request/response type operations.
 
 ```
 import { driver } from '@jprayner/piconet-nodejs';
@@ -196,9 +196,9 @@ driver.removeListener(listener);
 
 ## Econet essentials
 
-Econet network interfaces (like the ADF10 card) are based upon the MC68B54 Advanced Data Link Controller (ADLC). This handles the business of serialising data onto the wire, performing CRC checks etc. Layered upon this is the Econet protocol which defines the format of discrete messages sent over the network (known as "frames") via the ADLC.
+Econet network interfaces (like the ADF10 card) are based upon the MC68B54 Advanced Data Link Controller (ADLC). These handle the business of serialising data onto the wire, performing CRC checks etc. Layered upon this is the Econet protocol which defines the format of discrete messages sent over the network (known as "frames") via the ADLC.
 
-Rather than IP addresses, Econet uses two 8-bit numbers to uniquely identify a device on the network: the station and network numbers. The station number is in the range 1-254. Station 254 is normally reserved for the default fileserver and station 255 is used to indicate a broadcast frame, rather than a actual machine. A network number of zero indicates the local network, with other values used to address machines on other, "bridged" networks.
+Rather than IP addresses, Econet uses two 8-bit numbers to uniquely identify a device: the station and network numbers. The station number is in the range 1-254. Station 254 is normally reserved for the default fileserver and station 255 is used to indicate a broadcast frame, rather than an actual machine. A network number of zero indicates the local network, with other values used to address machines on other, "bridged" networks.
 
 ### The four-way handshake
 
