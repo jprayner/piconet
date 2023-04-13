@@ -191,7 +191,7 @@ driver.removeListener(listener);
 ... close driver etc. ...
 ```
 
-## Econet essentials
+## Econet protocol essentials
 
 Econet network interfaces (like the ADF10 card) are based upon the MC68B54 Advanced Data Link Controller (ADLC). This handles the business of serialising data onto the wire, performing CRC checks etc. Layered upon this is the Econet protocol which defines the format of discrete messages sent over the network (known as "frames") via the ADLC.
 
@@ -263,7 +263,7 @@ MonitorEvent 0.1 --> 0.168
   - Port 0x99 (the well-known `COMMAND` port)
 * The fileserver sends an acknowledgement frame back to the client
 * The client proceeds by sending the body of the message to the server in a data frame
-   - details of message not pertinent to this discussion but note the text `DIR` of the command appearing in th
+   - details of message not pertinent to this discussion but note the text `DIR` of the command appearing the hex dump
    - for more information on the fileserver protocol, refer to The Econet System User Guide or browse the [ecoclient source code](https://github.com/jprayner/ecoclient)
 * The fileserver sends an acknowledgement frame back to the client
 
