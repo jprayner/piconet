@@ -197,55 +197,18 @@ Econet network interfaces (like the ADF10 card) are based upon the MC68B54 Advan
 
 Rather than IP addresses, Econet uses two 8-bit numbers to uniquely identify a device on the network: the station and network numbers. The station number is in the range 1-254. Station 254 is normally reserved for the default fileserver and station 255 is used to indicate a broadcast frame, rather than a actual machine. A network number of zero indicates the local network, with other values used to address machines on other, "bridged" networks.
 
-### The four-way handshake
+### The TRANSMIT operation & the four-way handshake
 
 The Econet `TRANSMIT` operation is a key building block for a wide variety of Econet communications. During a `TRANSMIT` operation, four frames are exchanged in a sequence known as "the four-way handshake":
 
-1. the transmitting station sends a "scout" frame to the recipient, including a control byte (to indicate the type of traffic) and a port number
-2. the recipient sends an acknowledgement frame back to the transmitting station (assuming it is listening and knows how to handle the control byte/port combination)
+1. the transmitting station sends a "scout" frame to the recipient
+2. the recipient sends an acknowledgement frame back to the transmitting station
 3. the transmitting station sends a "data" frame containing the body of the message
 4. the recipient sends another acknowledgement frame
 
-This provides a reasonably robust mechanism for sending data and is handled by the driver's [transmit](https://github.com/jprayner/piconet/blob/main/driver/nodejs/docs/modules/driver.md#transmit) function. A failure of the caller to receive an "ACK" in steps [2] or [3] will often result in a limited number of back-offs and retries, although such mechanisms are application-dependant and out-of-scope here.
+This provides a reasonably robust mechanism for sending data. A failure of the caller to receive an "ACK" in steps [2] or [3] will often result in a limited number of back-offs and retries, although such mechanisms are application-dependant and out-of-scope here.
 
-### Scout frame format
-
-A scout frame consists of the following octets (bytes):
-
-1. Destination station number
-2. Destination network number
-3. Source station number
-4. Source network number
-5. Control byte
-6. Port number
-
-Again, the values of [5] and [6] depend on the type of traffic. In some exceptional cases (such as the `NOTIFY` operation), there may be a small amount of extra data following the port number.
-
-### Acknowledgement frame format
-
-An acknowledgement frame is dead simple (note that destination in this case is the sender of the scout frame, because the frame is being sent in the opposite direction; in other words, source and destination are swapped):
-
-1. Destination station number
-2. Destination network number
-3. Source station number
-4. Source network number
-
-The same format is used for acknowledging both scout and data frames.
-
-### Data frame format
-
-The first four octets of the data frame are:
-
-1. Destination station number
-2. Destination network number
-3. Source station number
-4. Source network number
-
-The remainder of the frame is dependent on the operation being performed. Given the memory limitations of devices at the time, data frames are typically a couple of kilobytes or less in length. Some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode).
-
-### Example TRANSMIT operation
-
-To illustrate the above, the following `*DIR` CLI call was captured using `ecoclient monitor`:
+To illustrate this, the following `*DIR` CLI call was captured using `ecoclient monitor`:
 
 ```
 MonitorEvent 0.168 --> 0.1
@@ -258,14 +221,22 @@ MonitorEvent 0.1 --> 0.168
         00000000: a8 00 01 00                                      |¨...            |
 ```
 
-* The first frame is the scout from station 168 (0xa8) to station 1 (the fileserver)
-  - Control byte 0x80 (a fileserver operation)
-  - Port 0x99 (the well-known `COMMAND` port)
-* The fileserver sends an acknowledgement frame back to the client
-* The client proceeds by sending the body of the message to the server in a data frame
-   - details of message not pertinent to this discussion but note the text `DIR` of the command appearing the hex dump
-   - for more information on the fileserver protocol, refer to The Econet System User Guide or browse the [ecoclient source code](https://github.com/jprayner/ecoclient)
-* The fileserver sends an acknowledgement frame back to the client
+Each frame begins with the same two bytes for the destination station/network and a further two bytes for the source station/network.
+
+1. A scout frame always has at least two additional bytes:
+  - the control byte (0x80 in this case, indicating a fileserver operation)
+  - the port numbber (0x99 here, the well-known fileserver `COMMAND` port)
+  - note that some scouts contain extra data (e.g. for the `NOTIFY` or `POKE` "immediate" operation)
+2. The fileserver sends an acknowledgement of the scout back to the client
+  - ACK frames only contain the four bytes of destination/source addresses
+  - a scout ACK means "go ahead": the server is listening and ready to handle the type of data expected for the control byte/port combination
+3 The client proceeds by sending the body of the message to the server in a data frame
+  - the data frame starts with the 4-bytes of destinstation/source addresses
+  - the format of the remainder of the frame is dependent on the operation being performed (note the text `DIR` of the CLI command)
+  - data frames are _typically_ a couple of kB or less in length
+  - some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode)
+4. The fileserver sends a further acknowledgement frame back to the client
+   - the data ACK indicates that the data frame was received successfully
 
 ### Broadcast frames
 
