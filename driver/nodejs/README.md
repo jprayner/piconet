@@ -199,10 +199,12 @@ Rather than IP addresses, Econet uses two 8-bit numbers to uniquely identify a d
 
 ### The TRANSMIT operation & the four-way handshake
 
-The Econet `TRANSMIT` operation is a key building block for a wide variety of Econet communications. During a `TRANSMIT` operation, four frames are exchanged in a sequence known as "the four-way handshake":
+The Econet `TRANSMIT` operation is a key building block for a wide variety of Econet communications. During a `TRANSMIT` operation, four frames are exchanged between sender and recipient in a sequence known as "the four-way handshake".
 
-1. the transmitting station sends a "scout" frame to the recipient
-2. the recipient sends an acknowledgement frame back to the transmitting station
+![four-way-sequence](https://user-images.githubusercontent.com/909745/232005366-7041a50b-0b00-441e-ab41-87005c2e5fb0.png)
+
+1. the client station sends a "scout" frame to the server
+2. the server sends an acknowledgement frame back to the client ("ok to proceed")
 3. the transmitting station sends a "data" frame containing the body of the message
 4. the recipient sends another acknowledgement frame
 
@@ -224,32 +226,23 @@ MonitorEvent 0.1 --> 0.168
 Each frame begins with the same two bytes for the destination station/network and a further two bytes for the source station/network.
 
 1. A scout frame always has at least two additional bytes:
-  - the control byte (0x80 in this case, indicating a fileserver operation)
-  - the port numbber (0x99 here, the well-known fileserver `COMMAND` port)
-  - note that some scouts contain extra data (e.g. for the `NOTIFY` or `POKE` "immediate" operation)
+    - the control byte (0x80 in this case, indicating a fileserver operation)
+    - the port numbber (0x99 here, the well-known fileserver `COMMAND` port)
+    - note that some scouts contain extra data (e.g. for the `NOTIFY` or `POKE` "immediate" operation)
 2. The fileserver sends an acknowledgement of the scout back to the client
-  - ACK frames only contain the four bytes of destination/source addresses
-  - a scout ACK means "go ahead": the server is listening and ready to handle the type of data expected for the control byte/port combination
-3 The client proceeds by sending the body of the message to the server in a data frame
-  - the data frame starts with the 4-bytes of destinstation/source addresses
-  - the format of the remainder of the frame is dependent on the operation being performed (note the text `DIR` of the CLI command)
-  - data frames are _typically_ a couple of kB or less in length
-  - some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode)
+    - ACK frames only contain the four bytes of destination/source addresses
+    - a scout ACK means "go ahead": the server is listening and ready to handle the type of data expected for the control byte/port combination
+3. The client proceeds by sending the body of the message to the server in a data frame
+    - the data frame starts with the 4-bytes of destinstation/source addresses
+    - the format of the remainder of the frame is dependent on the operation being performed (note the text `DIR` of the CLI command)
+    - data frames are _typically_ a couple of kB or less in length
+    - some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode)
 4. The fileserver sends a further acknowledgement frame back to the client
    - the data ACK indicates that the data frame was received successfully
 
 ### Broadcast frames
 
-A broadcast frame looks much like a scout:
-
-1. Destination station number (always 255 to indicate a broadcast)
-2. Destination network number (always 255 to indicate a broadcast)
-3. Source station number
-4. Source network number
-5. Control byte
-6. Port number
-
-This is typically followed by 8 bytes of data. More are possible but this causes problems on certain Econet stacks.
+A broadcast frame looks much like a scout. The destination station and network numbers are set to 255 to indicate a broadcast, and a control byte and port indicate the disposition of the data. Upto 8 bytes of data follow (larger amounts of data cause problems on certain Econet stacks).
 
 Here's a capture of a bridge solicitation broadcast message, sent by a BBC Master when `BREAK` is pressed:
 
