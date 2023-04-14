@@ -226,22 +226,22 @@ MonitorEvent 0.1 --> 0.168
 Each frame begins with the same two bytes for the destination station/network and a further two bytes for the source station/network.
 
 The client semds a scout frame which always has at least two additional bytes following the destination/source addresses:
-    - the control byte (0x80 in this case, indicating a fileserver operation)
-    - the port numbber (0x99 here, the well-known fileserver `COMMAND` port)
-    - note that some scout frames contain additional data (e.g. for the `NOTIFY` or `POKE` "immediate" operations)
+* the control byte (0x80 in this case, indicating a fileserver operation)
+* the port numbber (0x99 here, the well-known fileserver `COMMAND` port)
+* note that some scout frames contain additional data (e.g. for the `NOTIFY` or `POKE` "immediate" operations)
 
 The server sends a scout acknowledgement back to the client:
-    - ACK frames only contain the four bytes of destination/source addresses
-    - a scout ACK means that the server is listening and ready to handle the type of data expected for the control byte/port combination
+* ACK frames only contain the four bytes of destination/source addresses
+* a scout ACK means that the server is listening and ready to handle the type of data expected for the control byte/port combination
 
 The client proceeds by sending the body of the message to the server in a data frame:
-    - the data frame starts with the 4-bytes of destinstation/source addresses
-    - the format of the remainder of the frame is dependent on the operation being performed (note the text `DIR` of the CLI command)
-    - data frames are _typically_ a couple of kB or less in length
-    - some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode)
+* the data frame starts with the 4-bytes of destinstation/source addresses
+* the format of the remainder of the frame is dependent on the operation being performed (note the text `DIR` of the CLI command)
+* data frames are _typically_ a couple of kB or less in length
+* some operations such as `PEEK` or `POKE` can generate much larger data frames (e.g. 20kB for a screen grab, depending on video mode)
 
 The server sends a further acknowledgement frame back to the client:
-   - the data ACK indicates that the data frame was received successfully
+* the data ACK indicates that the data frame was received successfully
 
 ### Broadcast frames
 
