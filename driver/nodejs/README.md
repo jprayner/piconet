@@ -4,7 +4,7 @@ Piconet allows modern computers (MacOS, PC and Linux) to talk to Acorn Econet ne
 
 This library simplifies the use of Piconet for NodeJS apps written in JavaScript or TypeScript. It handles serial communication with the board and provides facilities to make life easier when dealing with asynchronous events. That said, it is actually a really thin layer over the [board's own protocol](https://github.com/jprayner/piconet#protocol-overview).
 
-## Pre-requisites
+## Prerequisites
 
 Piconet works with JavaScript or TypeScript NodeJS apps with:
 
