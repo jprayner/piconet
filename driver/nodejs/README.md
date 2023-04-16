@@ -52,7 +52,7 @@ const sendNotify = async (station: number, str: string) => {
 main();
 ```
 
-The above is available demo is available as [an installable project](https://github.com/jprayner/piconet/tree/main/driver/nodejs/examples/tx-notify) under the example folder.
+The above is available demo is available as [an installable project](https://github.com/jprayner/piconet/tree/main/driver/nodejs/examples/tx-notify) under the examples folder.
 
 
 ## Fault-finding
