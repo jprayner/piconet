@@ -52,6 +52,9 @@ const sendNotify = async (station: number, str: string) => {
 main();
 ```
 
+The above is available demo is available as [an installable project](https://github.com/jprayner/piconet/tree/main/driver/nodejs/examples/tx-notify) under the example folder.
+
+
 ## Fault-finding
 
 By default, the `connect` function will attempt to autodetect the correct serial device for the Pi Pico using the USB vendor ID and product ID. If this doesn't work — for example, you have multiple Picos attached to your machine — then you can explicitly pass it a device string such as `/dev/ttyACM0` for a Linux serial device or `COM4` for a Windows serial port.
