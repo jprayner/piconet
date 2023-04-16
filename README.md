@@ -33,6 +33,52 @@ It's still early days - expect weirdness!
 6. Connect an ADF10 Econet module to the board and hook it up to your Econet network
 7. Install an app such as [ecoclient](https://github.com/jprayner/ecoclient) or try one of the code examples provided with the [driver](https://github.com/jprayner/piconet/tree/main/driver/nodejs)
 
+## Firmware
+
+### Functional overview
+
+![functional-blocks](https://user-images.githubusercontent.com/909745/231214910-3fbc5c10-7e8f-45a0-8739-1eb8ad7ed1c4.png)
+
+* [Core 0](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) handles serial I/O, leaving Core 1 free for more time-sensitive tasks. It does the following:
+  - commands received from the host over the serial interface are put onto the command FIFO queue
+  - events received from Core 1 on the event FIFO queue are marshalled and sent on to the host
+* [Core 1](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) does the following:
+  - receives commands from the command FIFO
+  - handles the broadcast, transmit and receive Econet primitives and services ADLC interrupts in the [econet.c](https://github.com/jprayner/piconet/blob/main/board/src/econet.c) module
+  - generates the appropriate signals to read and write from ADLC registers in the [adlc.c](https://github.com/jprayner/piconet/blob/main/board/src/adlc.c) module
+  - generates events and places them on the event FIFO
+* The FIFO queues are used to synchronise communication between the two cores and to queue (the sometimes bursty) events coming out of core 1
+* Shared Memory is used by a [buffer pool](https://github.com/jprayner/piconet/blob/main/board/src/buffer_pool.c) to hold data frames in shared memory
+* The [PIO state machine](https://github.com/jprayner/piconet/blob/main/board/src/pinctl.pio) handles the time-critical signals `!CS` (a.k.a. `!ADLC`), `R!W` and the data bus
+  - some information on signal timing [may be found here](https://github.com/jprayner/piconet/tree/main/board#adlc-signals--timing)
+
+## Building firmware from source
+
+### Setting up Pico build tooling
+
+This assumes you are building on Linux - see [Pi Pico C SDK documentation](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) for other platforms.
+
+Install dependencies (Ubuntu/Debian derivatives)
+
+```
+apt install -y git build-essential cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3
+git clone https://github.com/raspberrypi/pico-sdk.git --branch master
+cd pico-sdk
+git submodule update --init
+```
+
+### Building
+
+Run the following from the `board` directory of this project:
+
+```
+export PICO_SDK_PATH=...  # set to directory created in previous step
+cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Debug -S. -B./build
+cmake --build ./build --config Debug --target piconet -j 12 --
+```
+
+A `piconet.uf2` for flashing should appear under the `build` subdirectory.
+
 ## Protocol overview
 
 This section describes the serial protocol between the board and driver.
@@ -104,53 +150,6 @@ There are three modes of operation:
 | `TIMEOUT` | Other timeout condition e.g. in communication with ADLC
 | `MISC` | Logic error e.g. in protocol decode
 | `UNEXPECTED` | Firmware issue — should never happen
-
-## Firmware
-
-### Functional overview
-
-![functional-blocks](https://user-images.githubusercontent.com/909745/231214910-3fbc5c10-7e8f-45a0-8739-1eb8ad7ed1c4.png)
-
-* [Core 0](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) handles serial I/O, leaving Core 1 free for more time-sensitive tasks. It does the following:
-  - commands received from the host over the serial interface are put onto the command FIFO queue
-  - events received from Core 1 on the event FIFO queue are marshalled and sent on to the host
-* [Core 1](https://github.com/jprayner/piconet/blob/main/board/src/piconet.c) does the following:
-  - receives commands from the command FIFO
-  - handles the broadcast, transmit and receive Econet primitives and services ADLC interrupts in the [econet.c](https://github.com/jprayner/piconet/blob/main/board/src/econet.c) module
-  - generates the appropriate signals to read and write from ADLC registers in the [adlc.c](https://github.com/jprayner/piconet/blob/main/board/src/adlc.c) module
-  - generates events and places them on the event FIFO
-* The FIFO queues are used to synchronise communication between the two cores and to queue (the sometimes bursty) events coming out of core 1
-* Shared Memory is used by a [buffer pool](https://github.com/jprayner/piconet/blob/main/board/src/buffer_pool.c) to hold data frames in shared memory
-* The [PIO state machine](https://github.com/jprayner/piconet/blob/main/board/src/pinctl.pio) handles the time-critical signals `!CS` (a.k.a. `!ADLC`), `R!W` and the data bus
-  - some information on signal timing [may be found here](https://github.com/jprayner/piconet/tree/main/board#adlc-signals--timing)
-
-## Building firmware from source
-
-### Setting up Pico build tooling
-
-This assumes you are building on Linux - see [Pi Pico C SDK documentation](https://datasheets.raspberrypi.com/pico/raspberry-pi-pico-c-sdk.pdf) for other platforms.
-
-Install dependencies (Ubuntu/Debian derivatives)
-
-```
-apt install -y git build-essential cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3
-git clone https://github.com/raspberrypi/pico-sdk.git --branch master
-cd pico-sdk
-git submodule update --init
-```
-
-### Building
-
-Run the following from the `board` directory of this project:
-
-```
-export PICO_SDK_PATH=...  # set to directory created in previous step
-cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Debug -S. -B./build
-cmake --build ./build --config Debug --target piconet -j 12 --
-```
-
-A `piconet.uf2` for flashing should appear under the `build` subdirectory.
-
 
 ## Credits
 
