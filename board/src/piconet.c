@@ -16,12 +16,12 @@
 #include "./lib/b64/cdecode.h"
 
 #define VERSION_MAJOR           1
-#define VERSION_MINOR           0
-#define VERSION_REV             19
+#define VERSION_MINOR           1
+#define VERSION_REV             0
 #define VERSION_STR_MAXLEN      17
 
 #define TX_DATA_BUFFER_SZ       3500
-#define RX_DATA_BUFFER_SZ       16536                       // TODO: make this dynamic
+#define RX_DATA_BUFFER_SZ       16536
 #define TX_SCOUT_BUFFER_SZ      32
 #define RX_SCOUT_BUFFER_SZ      32
 #define ACK_BUFFER_SZ           32
@@ -30,7 +30,7 @@
 #define CMD_BUFFER_SZ           TX_DATA_BUFFER_SZ * 2
 
 #define QUEUE_SZ_CMD            1
-#define QUEUE_SZ_EVENT          6                           // TODO: make this dynamic
+#define QUEUE_SZ_EVENT          6
 
 #define CMD_STATUS              "STATUS"
 #define CMD_RESTART             "RESTART"
@@ -442,7 +442,6 @@ void _read_command_input(void) {
             cmd.type = PICONET_CMD_RESTART;
         } else if (strcmp(ptr, CMD_SET_MODE) == 0) {
             cmd.type = PICONET_CMD_SET_MODE;
-            // TODO: strtok prolly not thread safe
             const char *mode = strtok(NULL, delim);
             if (mode == NULL) {
                 error = true;

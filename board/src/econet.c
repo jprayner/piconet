@@ -565,11 +565,9 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
         }
 
         printf("ERROR [_rx_data_for_scout] read frame failed code=%u", data_frame_result.status);
-        // TODO: I wonder if this gets called coz we don't check status below
         _abort_read();
     }
 
-    // TODO YOU ARE HERE: getting length 6 but can see rest of it in debugger!
     t_frame_parse_result data_frame = _parse_frame(_rx_data_buffer, data_frame_result.bytes_read, false);
     if (data_frame.type != FRAME_TYPE_DATA) {
         printf("ERROR [_rx_data_for_scout] parse failed type=%u len=%u - aborting\n", data_frame.type, data_frame_result.bytes_read);

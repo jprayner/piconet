@@ -1,7 +1,7 @@
 import { driver } from '@jprayner/piconet-nodejs';
 
 const localEconetStation = 171; // make sure this is unused on your network
-const destEconetStation = 127; // set this to the destination station number
+const destEconetStation = 168; // set this to the destination station number
 
 async function main() {
   console.log('Connecting to board...');

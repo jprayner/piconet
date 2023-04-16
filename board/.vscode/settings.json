@@ -36,7 +36,8 @@
         "ostream": "c",
         "ratio": "c",
         "type_traits": "c",
-        "utility": "c"
+        "utility": "c",
+        "gpio.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }
