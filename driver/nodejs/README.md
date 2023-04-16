@@ -23,7 +23,7 @@ npm i --save @jprayner/piconet-nodejs
 
 Check out the [examples](https://github.com/jprayner/piconet/tree/main/driver/nodejs/examples) for some simple Econet apps or the source code of the [ecoclient project](https://github.com/jprayner/ecoclient).
 
-The following TypeScript code sends text message to station 127 using the `NOTIFY` immediate operation:
+The following TypeScript code sends a text message to station 127 using the `NOTIFY` immediate operation:
 
 ```TypeScript
 import { driver } from '@jprayner/piconet-nodejs';
