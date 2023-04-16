@@ -1,6 +1,6 @@
-# nodejs/examples/login-server
+# nodejs/examples/tx-notify
 
-This example shows how to implement the beginnings of an Econet fileserver by handling a login request (`*I AM` command).
+This example shows how to send a text message using a `NOTIFY` immediate operation.
 
 See also the [ecoclient](https://github.com/jprayner/ecoclient) project for more examples of implementing the Econet
 fileserver protocol.
@@ -27,28 +27,9 @@ You should see output like the following:
 
 ```
 Connecting to board...
-Set local station number to 171
-Listening for traffic...
+Sending message to station 127 from station 171...
+Message sent, closing connection to board...
 ```
-
-Try executing something like this from a beeb:
-
-```
-*I AM 171 JPR93 MYPASS
-```
-
-The command should complete successfully and you will see the following on your local machine:
-
-```
-RxTransmitEvent 0.127 --> 0.171
-[SCOUT] 00000000: ab 00 7f 00 80 99                                |«.....          |
-[DATA]  00000000: ab 00 7f 00 90 00 01 02  04 49 20 61 6d 20 4a 50 |«........I am JP|
-        00000010: 52 39 33 20 41 42 43 0d                          |R93 ABC.        |
-Received OSCLI command="I am JPR93 ABC"
-Successfully sent reply
-```
-
-Hit ctrl+c to exit gracefully.
 
 If you have trouble during the board connection step, refer to the driver
 [fault finding](https://github.com/jprayner/piconet/tree/main/driver/nodejs#fault-finding) section.

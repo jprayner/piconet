@@ -61,3 +61,6 @@ MonitorEvent 0.127 --> 0.1
 ```
 
 Hit ctrl+c to exit gracefully.
+
+If you have trouble during the board connection step, refer to the driver
+[fault finding](https://github.com/jprayner/piconet/tree/main/driver/nodejs#fault-finding) section.
