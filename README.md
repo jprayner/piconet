@@ -17,8 +17,11 @@ This project provides the purple boxes in the above diagram: the hardware design
 This project is still under development. Currently:
 
 * The board currently only exists in prototype form. A circuit diagram is available [here](https://github.com/jprayner/piconet/tree/main/board). It is hoped that a prebuilt board will be available soon.
-* At the moment, a (wired) USB connection is required between the Pico on the Piconet board and the host machine. In the future, this may be extended to allow your machine to connect to a Pico W over a WiFi network.
 * The only driver available today is based on Node.js. Contributions of drivers based on other languages are welcome (Python, Golang etc) — please get in touch if interested! It is also possible to write apps which communicate with the board directly over a serial connection. See the protocol documentation below.
+* Most development has been carried out on a Mac, although Windows and Linux have been tested too.
+* Interoperability testing has been carried out with Acorn Level 3 (BBC Micro) and Level 4 (Archimedes) fileservers only.
+
+It's still early days - expect weirdness!
 
 ## Getting started
 
@@ -28,7 +31,7 @@ This project is still under development. Currently:
 4. The Pico should show as a storage device: copy the `.uf2` image to it
 5. The Pico should reboot automatically when the copy is complete
 6. Connect an ADF10 Econet module to the board and hook it up to your Econet network
-7. Install an app such as [ecoclient](https://github.com/jprayner/ecoclient) or try one of the examples
+7. Install an app such as [ecoclient](https://github.com/jprayner/ecoclient) or try one of the code examples provided with the [driver](https://github.com/jprayner/piconet/tree/main/driver/nodejs)
 
 ## Protocol overview
 
