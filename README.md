@@ -11,7 +11,7 @@ This project provides the purple boxes in the above diagram: the hardware design
 ## Related projects
 
 * [ecoclient](https://github.com/jprayner/ecoclient) — a command-line utility for performing Econet operations
-* [NodeJS driver]([https://github.com/jprayner/ecoclient](https://github.com/jprayner/piconet/tree/main/driver/nodejs)) — see this subproject for code samples to build your own Econet apps
+* [NodeJS driver](https://github.com/jprayner/piconet/tree/main/driver/nodejs) — see this subproject for docs and code samples to build your own Econet apps
 
 ## State of development
 
