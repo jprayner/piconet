@@ -28,7 +28,7 @@ The following TypeScript code sends text message to station 127 using the `NOTIF
 ```TypeScript
 import { driver } from '@jprayner/piconet-nodejs';
 
-async function main() {
+const main = async () => {
   await driver.connect();
   await driver.setEconetStation(32);    // make sure this is unused on your network
   await sendNotify(127, 'Mary had a little lamb');
