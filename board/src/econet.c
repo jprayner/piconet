@@ -593,6 +593,10 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
 
 static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediate_scout_frame) {
     if (immediate_scout_frame->frame.ctrl == 0x88) {
+        uint8_t manufacturer_id = 0x4a; // JPR
+        uint8_t machine_type = 0x55;    // undefined
+        // TODO: use above constants
+
         uint8_t ack_extra_data[4];
         ack_extra_data[0] = 0x05;
         ack_extra_data[1] = 0x00;
@@ -605,7 +609,7 @@ static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediat
             return _rx_result_for_error(ECONET_RX_ERROR_SCOUT_ACK);
         }
 
-        _abort_read(); // TODO: is this needed?
+        _abort_read();
 
         econet_rx_result_t result;
         result.type = PICONET_RX_RESULT_NONE;
@@ -657,11 +661,6 @@ static econet_rx_result_t _handle_first_frame() {
 
     t_frame_parse_result result = _parse_frame(_rx_scout_buffer, read_frame_result.bytes_read, true);
     switch (result.type) {
-        // TODO: You are here
-        /*
-            Transmit will require a single buffer at a time (may be large, who knows)
-            Immediate will require 
-        */
         case FRAME_TYPE_TRANSMIT :
             return _handle_transmit_scout(&result);
         case FRAME_TYPE_IMMEDIATE :

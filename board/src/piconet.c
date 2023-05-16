@@ -8,6 +8,7 @@
 #include "hardware/gpio.h"
 #include "hardware/clocks.h"
 
+#include "wifi.h"
 #include "econet.h"
 #include "adlc.h"
 #include "util.h"
@@ -193,6 +194,7 @@ void _core0_loop(void) {
                     event.status.station,
                     event.status.status_register_1,
                     event.status.mode);
+                connect("SKYEB3E9", "MYPASS");
                 break;
             }
 
