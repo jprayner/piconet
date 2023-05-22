@@ -6,7 +6,7 @@ This directory contains the firmware for Piconet which comprises ANSI C code for
 
 The Piconet board is simply a couple of SN74LVC245 buffers doing conversion between the 3.3V CMOS levels of the Pico and the 5V TTL levels of ADF10 module. SN74HCT245 buffers work fine too. The ADF10 is powered from the 5V of the USB connection, no need for a separate power supply.
 
-![Schematic_piconet_2023-02-15](https://user-images.githubusercontent.com/909745/219204768-f511ca68-83ad-4179-b935-38036b83f05f.png)
+![Schematic_piconet_2023-05-22](https://github.com/jprayner/piconet/assets/909745/1044894b-2a8c-4942-85b4-5a8e77e33147)
 
 ## Prototype
 
@@ -15,6 +15,8 @@ It is hoped that a prebuilt board will be available for purchase soon but curren
 ![breadboard](https://user-images.githubusercontent.com/909745/229339862-0e919559-c6a4-44d5-bc3d-d3d99635fa6b.jpg)
 
 I knocked up a separate board for the DIN connector:
+
+*OOPS!* I swapped CLK+ and CLK- around here (good spot, Ken). It seems to work ok — presumably because of the differential signalling — but please follow schematic above where DIN pins 3 and 5 are swapped.
 
 ![DIN5-conn-front](https://user-images.githubusercontent.com/909745/229340063-d8e43cc3-caf1-4c82-9b0a-10b5a3b97085.jpg)
 
