@@ -62,7 +62,7 @@ do_read:
 
 % c-sdk {
 
-void pinctl_program_init(PIO pio, uint sm, uint offset, uint pin_data_0, uint pin_cs, float frequency) {
+void pinctl_program_init(PIO pio, uint sm, uint offset, uint pin_data_7, uint pin_cs, float frequency) {
     pio_sm_config config = pinctl_program_get_default_config(offset);
 
     // init SIDE-SET pin group: ADLC !CS signal and RnW
@@ -72,17 +72,17 @@ void pinctl_program_init(PIO pio, uint sm, uint offset, uint pin_data_0, uint pi
     pio_sm_set_consecutive_pindirs(pio, sm, pin_cs, 2, true); // configure for output
 
     // init (identical) IN and OUT pin groups: our data pins D0-D7
-    pio_gpio_init(pio, pin_data_0 + 0);
-    pio_gpio_init(pio, pin_data_0 + 1);
-    pio_gpio_init(pio, pin_data_0 + 2);
-    pio_gpio_init(pio, pin_data_0 + 3);
-    pio_gpio_init(pio, pin_data_0 + 4);
-    pio_gpio_init(pio, pin_data_0 + 5);
-    pio_gpio_init(pio, pin_data_0 + 6);
-    pio_gpio_init(pio, pin_data_0 + 7);
-    sm_config_set_out_pins(&config, pin_data_0, 8);
-    sm_config_set_in_pins(&config, pin_data_0);
-    pio_sm_set_consecutive_pindirs(pio, sm, pin_data_0, 8, false);  // configure for input initially (will change over time)
+    pio_gpio_init(pio, pin_data_7 + 0);
+    pio_gpio_init(pio, pin_data_7 + 1);
+    pio_gpio_init(pio, pin_data_7 + 2);
+    pio_gpio_init(pio, pin_data_7 + 3);
+    pio_gpio_init(pio, pin_data_7 + 4);
+    pio_gpio_init(pio, pin_data_7 + 5);
+    pio_gpio_init(pio, pin_data_7 + 6);
+    pio_gpio_init(pio, pin_data_7 + 7);
+    sm_config_set_out_pins(&config, pin_data_7, 8);
+    sm_config_set_in_pins(&config, pin_data_7);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_data_7, 8, false);  // configure for input initially (will change over time)
 
     // init clock
     float clock_divider = (float) clock_get_hz(clk_sys) / frequency;

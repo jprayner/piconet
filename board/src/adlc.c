@@ -12,14 +12,14 @@ const uint LED_PIN = 25;
 const uint GPIO_CLK_OUT = 21;
 const uint GPIO_TMP = 15; // used to test sampling clock out pin
 
-const uint GPIO_DATA_0 = 2;
-const uint GPIO_DATA_1 = 3;
-const uint GPIO_DATA_2 = 4;
-const uint GPIO_DATA_3 = 5;
-const uint GPIO_DATA_4 = 6;
-const uint GPIO_DATA_5 = 7;
-const uint GPIO_DATA_6 = 8;
-const uint GPIO_DATA_7 = 9;
+const uint GPIO_DATA_0 = 9;
+const uint GPIO_DATA_1 = 8;
+const uint GPIO_DATA_2 = 7;
+const uint GPIO_DATA_3 = 6;
+const uint GPIO_DATA_4 = 5;
+const uint GPIO_DATA_5 = 4;
+const uint GPIO_DATA_6 = 3;
+const uint GPIO_DATA_7 = 2;
 
 const uint GPIO_BUFF_A0 = 11;
 const uint GPIO_BUFF_A1 = 12;
@@ -33,20 +33,32 @@ const uint CMD_WRITE = 0x100;
 static PIO pio;
 static uint sm;
 
+static unsigned char lookup[16] = {
+    0x0, 0x8, 0x4, 0xc, 0x2, 0xa, 0x6, 0xe,
+    0x1, 0x9, 0x5, 0xd, 0x3, 0xb, 0x7, 0xf
+};
+
+static uint8_t reverse(uint8_t n) {
+   return (lookup[n&0b1111] << 4) | lookup[n>>4];
+}
+
 uint adlc_read(uint reg) {
     gpio_put(GPIO_BUFF_A0, reg & 0x01);
     gpio_put(GPIO_BUFF_A1, reg & 0x02);
 
     pio_sm_put_blocking(pio, sm, CMD_READ);
     uint result = pio_sm_get_blocking(pio, sm);
-    return result;
+
+    // note that pin bit order is reversed for board layout reasons
+    return reverse(result);
 }
 
 void adlc_write(uint reg, uint data_val) {
     gpio_put(GPIO_BUFF_A0, reg & 0x01);
     gpio_put(GPIO_BUFF_A1, reg & 0x02);
 
-    pio_sm_put_blocking(pio, sm, CMD_WRITE | data_val);
+    // note that pin bit order is reversed for board layout reasons
+    pio_sm_put_blocking(pio, sm, CMD_WRITE | reverse(data_val));
     pio_sm_get_blocking(pio, sm);
 }
 
@@ -108,7 +120,7 @@ void adlc_init(void) {
 
     // state machine frequency of 32x 2MHz = 64MHz == 15.625ns period
 	// => can sample upto 16 points in each of low and high clock states
-    pinctl_program_init(pio, sm, offset, GPIO_DATA_0, GPIO_BUFF_CS, 64000000);
+    pinctl_program_init(pio, sm, offset, GPIO_DATA_7, GPIO_BUFF_CS, 64000000);
 
     // Init Control Register 1 (CR1)
     adlc_write_cr1(CR1_TX_RESET | CR1_RX_RESET);

@@ -15,8 +15,8 @@
 #include "./lib/b64/cencode.h"
 #include "./lib/b64/cdecode.h"
 
-#define VERSION_MAJOR           1
-#define VERSION_MINOR           1
+#define VERSION_MAJOR           2
+#define VERSION_MINOR           0
 #define VERSION_REV             0
 #define VERSION_STR_MAXLEN      17
 
