@@ -17,7 +17,7 @@
 
 #define VERSION_MAJOR           2
 #define VERSION_MINOR           0
-#define VERSION_REV             0
+#define VERSION_REV             1
 #define VERSION_STR_MAXLEN      17
 
 #define TX_DATA_BUFFER_SZ       3500
@@ -291,6 +291,8 @@ void _core1_loop(void) {
     set_ack_buffer(ack_buffer, ACK_BUFFER_SZ);
 
     while (true) {
+        adlc_update_data_led(false);
+
         if (queue_try_remove(&command_queue, &received_command)) {
             switch (received_command.type) {
                 case PICONET_CMD_STATUS:
@@ -311,6 +313,8 @@ void _core1_loop(void) {
                     set_station(received_command.station);
                     break;
                 case PICONET_CMD_TX: {
+                    adlc_update_data_led(true);
+
                     econet_tx_result_t result = transmit(
                         received_command.tx.dest_station,
                         received_command.tx.dest_network,
@@ -369,6 +373,7 @@ void _core1_loop(void) {
                 pool_buffer_release(&rx_buffer_pool, rx_data_buffer->handle);
                 break;
             case PICONET_RX_RESULT_ERROR:
+                adlc_update_data_led(true);
                 event.type = PICONET_RX_EVENT;
                 event.rx_event_detail.type = rx_result.type;
                 event.rx_event_detail.error = rx_result.error;
@@ -376,6 +381,7 @@ void _core1_loop(void) {
                 pool_buffer_release(&rx_buffer_pool, rx_data_buffer->handle);
                 break;
             default:
+                adlc_update_data_led(true);
                 event.type = PICONET_RX_EVENT;
                 event.rx_event_detail.type = rx_result.type;
                 event.rx_event_detail.scout_len = rx_result.detail.scout_len;       // scout itself populated by econet module

@@ -605,7 +605,7 @@ static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediat
             return _rx_result_for_error(ECONET_RX_ERROR_SCOUT_ACK);
         }
 
-        _abort_read(); // TODO: is this needed?
+        _abort_read();
 
         econet_rx_result_t result;
         result.type = PICONET_RX_RESULT_NONE;
@@ -657,11 +657,6 @@ static econet_rx_result_t _handle_first_frame() {
 
     t_frame_parse_result result = _parse_frame(_rx_scout_buffer, read_frame_result.bytes_read, true);
     switch (result.type) {
-        // TODO: You are here
-        /*
-            Transmit will require a single buffer at a time (may be large, who knows)
-            Immediate will require 
-        */
         case FRAME_TYPE_TRANSMIT :
             return _handle_transmit_scout(&result);
         case FRAME_TYPE_IMMEDIATE :

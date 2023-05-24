@@ -74,5 +74,6 @@ void adlc_write_cr4(uint data_val);
 void adlc_write_fifo(uint data_val);
 void adlc_irq_reset(void);
 void adlc_flag_fill(void);
+void adlc_update_data_led(bool new_activity);
 
 #endif

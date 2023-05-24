@@ -6,8 +6,10 @@
 #include "hardware/pio.h"
 #include "hardware/clocks.h"
 #include "pinctl.pio.h"
+#include "util.h"
 
-const uint LED_PIN = 25;
+const uint LED_ACTIVE_PIN = 25;
+const uint LED_DATA_PIN = 10;
 
 const uint GPIO_CLK_OUT = 21;
 const uint GPIO_TMP = 15; // used to test sampling clock out pin
@@ -97,8 +99,10 @@ void adlc_init(void) {
     clock_gpio_init(GPIO_CLK_OUT, CLOCKS_CLK_GPOUT0_CTRL_AUXSRC_VALUE_CLK_USB, 24);
 
     // init GPIO outputs
-    gpio_init(LED_PIN);
-    gpio_set_dir(LED_PIN, GPIO_OUT);
+    gpio_init(LED_ACTIVE_PIN);
+    gpio_set_dir(LED_ACTIVE_PIN, GPIO_OUT);
+    gpio_init(LED_DATA_PIN);
+    gpio_set_dir(LED_DATA_PIN, GPIO_OUT);
     gpio_init(GPIO_BUFF_A0);
     gpio_set_dir(GPIO_BUFF_A0, GPIO_OUT);
     gpio_init(GPIO_BUFF_A1);
@@ -109,7 +113,8 @@ void adlc_init(void) {
     gpio_init(GPIO_TMP);
     gpio_set_dir(GPIO_TMP, GPIO_OUT);
 
-    gpio_put(LED_PIN, 1);
+    gpio_put(LED_ACTIVE_PIN, 1);
+    gpio_put(LED_DATA_PIN, 0);
 
     adlc_reset();
 
@@ -135,4 +140,15 @@ void adlc_irq_reset(void) {
 
 void adlc_flag_fill(void) {
   adlc_write(REG_CONTROL_2, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
+}
+
+void adlc_update_data_led(bool new_activity) {
+    static uint32_t last_activity = 0;
+
+    if (new_activity) {
+        last_activity = time_ms();
+    }
+
+    bool is_on = (time_ms() - last_activity) < 50;
+    gpio_put(LED_DATA_PIN, is_on);
 }
