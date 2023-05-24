@@ -593,11 +593,17 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
 
 static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediate_scout_frame) {
     if (immediate_scout_frame->frame.ctrl == 0x88) {
+        // Machine peek - see https://stardot.org.uk/forums/viewtopic.php?p=390596#p390596
+        uint8_t machine_type = 0x55;    // U = undefined
+        uint8_t manufacturer_id = 0x4a; // J = JPR
+        uint8_t version_minor = 0x00;   // first release
+        uint8_t version_major = 0x05;   // normal 32-bit client
+
         uint8_t ack_extra_data[4];
-        ack_extra_data[0] = 0x05;
-        ack_extra_data[1] = 0x00;
-        ack_extra_data[2] = 0x25;
-        ack_extra_data[3] = 0x04;
+        ack_extra_data[0] = machine_type;
+        ack_extra_data[1] = manufacturer_id;
+        ack_extra_data[2] = version_minor;
+        ack_extra_data[3] = version_major;
 
         tFrameWriteStatus scout_ack_result = _send_ack(immediate_scout_frame, ack_extra_data, sizeof(ack_extra_data));
         if (scout_ack_result != FRAME_WRITE_OK) {
