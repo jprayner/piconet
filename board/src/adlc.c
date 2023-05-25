@@ -142,13 +142,6 @@ void adlc_flag_fill(void) {
   adlc_write(REG_CONTROL_2, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
 }
 
-void adlc_update_data_led(bool new_activity) {
-    static uint32_t last_activity = 0;
-
-    if (new_activity) {
-        last_activity = time_ms();
-    }
-
-    bool is_on = (time_ms() - last_activity) < 50;
-    gpio_put(LED_DATA_PIN, is_on);
+void adlc_update_data_led(bool is_on) {
+    gpio_put(LED_DATA_PIN, is_on ? 1 : 0);
 }
