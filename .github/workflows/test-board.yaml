@@ -29,5 +29,6 @@ jobs:
     - name: Archive build products
       uses: actions/upload-artifact@v3
       with:
-        files: |
+        name: Flash image
+        path: |
           ./board/build/piconet.uf2
