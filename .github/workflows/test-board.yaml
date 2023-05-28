@@ -26,3 +26,8 @@ jobs:
         export PICO_SDK_PATH=/pico-sdk
         cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Debug -S. -B./build
         cmake --build ./build --config Debug --target piconet -j 12 --
+    - name: Archive build products
+      uses: actions/upload-artifact@v3
+      with:
+        files: |
+          ./board/build/piconet.uf2
