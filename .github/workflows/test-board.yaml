@@ -32,3 +32,4 @@ jobs:
         name: Flash image
         path: |
           ./board/build/piconet.uf2
+        retention-days: 14
