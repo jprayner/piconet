@@ -3,8 +3,6 @@ name: Test board firmware build
 on:
   workflow_dispatch:
   push:
-    tags-ignore:
-      - '**'
     paths:
       - 'board/**'
       - '.github/workflows/test-board.yaml'
