@@ -135,3 +135,7 @@ void adlc_irq_reset(void) {
 void adlc_flag_fill(void) {
   adlc_write(REG_CONTROL_2, 0b11100100); // Set CR2 to RTS, TX Status Clear, RX Status clear, Flag fill on idle)
 }
+
+void adlc_update_data_led(bool is_on) {
+    //gpio_put(PICO_DEFAULT_LED_PIN, is_on ? 1 : 0);
+}
