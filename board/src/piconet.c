@@ -153,10 +153,6 @@ void    _test_board(void);
 int main() {
     stdio_init_all();
 
-    sleep_ms(10000);
-    printf("GP25 func %d", gpio_get_function(25));
-    printf("GP10 func %d", gpio_get_function(10));
-
     if (!pool_init(&rx_buffer_pool, RX_DATA_BUFFER_SZ, QUEUE_SZ_EVENT)) {
         printf("ERROR Failed to allocate memory for RX data buffers");
         return 1;
@@ -288,6 +284,10 @@ void _core1_loop(void) {
         printf("ERROR Failed to init econet module. Game over, man.\n");
         return;
     }
+
+    sleep_ms(5000);
+    printf("GP25 func %d", gpio_get_function(25));
+    printf("GP10 func %d", gpio_get_function(10));
 
     set_tx_scout_buffer(scout_buffer, TX_SCOUT_BUFFER_SZ);
     set_tx_data_buffer(tx_buffer, TX_DATA_BUFFER_SZ);
