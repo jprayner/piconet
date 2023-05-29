@@ -12,7 +12,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/jprayner/piconet-build-board-image:latest
+      image: ghcr.io/jprayner/piconet-build-board-image:sha256:13909ee0811b8753effa10ab04fd181530a4fc7a2b3297540f651b47736b01ef
     steps:
     - name: Checkout
       uses: actions/checkout@v3
