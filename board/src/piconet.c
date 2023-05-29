@@ -153,6 +153,7 @@ void    _test_board(void);
 int main() {
     stdio_init_all();
 
+    sleep_ms(10000);
     printf("GP25 func %d", gpio_get_function(25));
     printf("GP10 func %d", gpio_get_function(10));
 
