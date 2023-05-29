@@ -17,7 +17,7 @@
 
 #define VERSION_MAJOR           2
 #define VERSION_MINOR           0
-#define VERSION_REV             12
+#define VERSION_REV             13
 #define VERSION_STR_MAXLEN      17
 
 #define TX_DATA_BUFFER_SZ       3500
@@ -311,8 +311,6 @@ void _core1_loop(void) {
                     set_station(received_command.station);
                     break;
                 case PICONET_CMD_TX: {
-                    adlc_update_data_led(true);
-
                     econet_tx_result_t result = transmit(
                         received_command.tx.dest_station,
                         received_command.tx.dest_network,
@@ -325,7 +323,6 @@ void _core1_loop(void) {
                     event.type = PICONET_TX_EVENT;
                     event.tx_event_detail.type = result;
                     queue_add_blocking(&event_queue, &event);
-                    adlc_update_data_led(false);
                     break;
                 }
                 case PICONET_CMD_REPLY: {
@@ -365,9 +362,7 @@ void _core1_loop(void) {
         }
         set_rx_data_buffer(rx_data_buffer->data, rx_data_buffer->size);
 
-        adlc_update_data_led(true);
         econet_rx_result_t rx_result = (mode == PICONET_CMD_SET_MODE_MONITOR) ? monitor() : receive();
-        adlc_update_data_led(false);
 
         switch (rx_result.type) {
             case PICONET_RX_RESULT_NONE:

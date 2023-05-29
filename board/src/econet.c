@@ -169,24 +169,30 @@ econet_tx_result_t transmit(
     _tx_scout_buffer[5] = port;
     memcpy(_tx_scout_buffer + 6, scout_extra_data, scout_extra_data_len);
 
+    adlc_update_data_led(true);
     econet_tx_result_t scout_result = _tx_result_for_frame_status(_tx_frame(_tx_scout_buffer, scout_frame_len));
     if (scout_result != PICONET_TX_RESULT_OK) {
+        adlc_update_data_led(false);
         return scout_result;
     }
 
     if (!_wait_ack(station, network, _listen_addresses[0], 0x00)) {
+        adlc_update_data_led(false);
         return PICONET_TX_RESULT_ERROR_NO_SCOUT_ACK;
     }
 
     econet_tx_result_t data_result = _tx_result_for_frame_status(_tx_frame(_tx_data_buffer, data_frame_len));
     if (data_result != PICONET_TX_RESULT_OK) {
+        adlc_update_data_led(false);
         return data_result;
     }
 
     if (!_wait_ack(station, network, _listen_addresses[0], 0x00)) {
+        adlc_update_data_led(false);
         return PICONET_TX_RESULT_ERROR_NO_DATA_ACK;
     }
 
+    adlc_update_data_led(false);
     return PICONET_TX_RESULT_OK;
 }
 
@@ -238,7 +244,9 @@ econet_rx_result_t receive() {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
+            adlc_update_data_led(true);
             result = _handle_first_frame();
+            adlc_update_data_led(false);
         }
 
         adlc_irq_reset();
@@ -268,8 +276,11 @@ econet_rx_result_t monitor() {
         uint status_reg_2 = adlc_read(REG_STATUS_2);
 
         if (status_reg_2 & STATUS_2_ADDR_PRESENT) {
+            adlc_update_data_led(true);
             t_frame_read_result read_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, _listen_addresses, 0, 2000);
             _clear_rx();
+
+            adlc_update_data_led(false);
 
             if (read_frame_result.status != FRAME_READ_OK) {
                 return _map_read_frame_result(read_frame_result.status);
