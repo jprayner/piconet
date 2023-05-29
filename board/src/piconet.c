@@ -17,7 +17,7 @@
 
 #define VERSION_MAJOR           2
 #define VERSION_MINOR           0
-#define VERSION_REV             6
+#define VERSION_REV             7
 #define VERSION_STR_MAXLEN      17
 
 #define TX_DATA_BUFFER_SZ       3500
@@ -279,7 +279,6 @@ void _core1_loop(void) {
     uint8_t         tx_buffer[TX_DATA_BUFFER_SZ];
     uint8_t         ack_buffer[ACK_BUFFER_SZ];
     piconet_mode_t  mode = PICONET_CMD_SET_MODE_STOP;
-    uint32_t        last_activity = 0;
 
     if (!econet_init()) {
         printf("ERROR Failed to init econet module. Game over, man.\n");
@@ -292,8 +291,6 @@ void _core1_loop(void) {
     set_ack_buffer(ack_buffer, ACK_BUFFER_SZ);
 
     while (true) {
-        adlc_update_data_led((time_ms() - last_activity) < 50);
-
         if (queue_try_remove(&command_queue, &received_command)) {
             switch (received_command.type) {
                 case PICONET_CMD_STATUS:
@@ -314,7 +311,7 @@ void _core1_loop(void) {
                     set_station(received_command.station);
                     break;
                 case PICONET_CMD_TX: {
-                    last_activity = time_ms();
+                    adlc_update_data_led(true);
 
                     econet_tx_result_t result = transmit(
                         received_command.tx.dest_station,
@@ -328,6 +325,7 @@ void _core1_loop(void) {
                     event.type = PICONET_TX_EVENT;
                     event.tx_event_detail.type = result;
                     queue_add_blocking(&event_queue, &event);
+                    adlc_update_data_led(false);
                     break;
                 }
                 case PICONET_CMD_REPLY: {
@@ -367,14 +365,15 @@ void _core1_loop(void) {
         }
         set_rx_data_buffer(rx_data_buffer->data, rx_data_buffer->size);
 
+        adlc_update_data_led(true);
         econet_rx_result_t rx_result = (mode == PICONET_CMD_SET_MODE_MONITOR) ? monitor() : receive();
+        adlc_update_data_led(false);
 
         switch (rx_result.type) {
             case PICONET_RX_RESULT_NONE:
                 pool_buffer_release(&rx_buffer_pool, rx_data_buffer->handle);
                 break;
             case PICONET_RX_RESULT_ERROR:
-                last_activity = time_ms();
                 event.type = PICONET_RX_EVENT;
                 event.rx_event_detail.type = rx_result.type;
                 event.rx_event_detail.error = rx_result.error;
@@ -382,7 +381,6 @@ void _core1_loop(void) {
                 pool_buffer_release(&rx_buffer_pool, rx_data_buffer->handle);
                 break;
             default:
-                last_activity = time_ms();
                 event.type = PICONET_RX_EVENT;
                 event.rx_event_detail.type = rx_result.type;
                 event.rx_event_detail.scout_len = rx_result.detail.scout_len;       // scout itself populated by econet module
