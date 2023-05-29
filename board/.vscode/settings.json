@@ -37,7 +37,8 @@
         "ratio": "c",
         "type_traits": "c",
         "utility": "c",
-        "gpio.h": "c"
+        "gpio.h": "c",
+        "buffer_pool.h": "c"
     },
     "cortex-debug.variableUseNaturalFormat": true
 }
