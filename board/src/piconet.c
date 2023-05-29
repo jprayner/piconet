@@ -153,6 +153,9 @@ void    _test_board(void);
 int main() {
     stdio_init_all();
 
+    printf("GP25 func %d", gpio_get_function(25));
+    printf("GP10 func %d", gpio_get_function(10));
+
     if (!pool_init(&rx_buffer_pool, RX_DATA_BUFFER_SZ, QUEUE_SZ_EVENT)) {
         printf("ERROR Failed to allocate memory for RX data buffers");
         return 1;
