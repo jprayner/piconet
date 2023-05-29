@@ -570,7 +570,7 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
             return _rx_result_for_error(ECONET_RX_ERROR_TIMEOUT);
         }
 
-        data_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, _listen_addresses, sizeof(_listen_addresses), 2000);
+        data_frame_result = _read_frame(_rx_data_buffer, _rx_data_buffer_sz, _listen_addresses, sizeof(_listen_addresses), 10000);
         if (data_frame_result.status == FRAME_READ_OK) {
             break;
         }
