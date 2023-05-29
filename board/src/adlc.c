@@ -137,5 +137,5 @@ void adlc_flag_fill(void) {
 }
 
 void adlc_update_data_led(bool is_on) {
-    gpio_put(PICO_DEFAULT_LED_PIN, is_on ? 1 : 0);
+    //gpio_put(PICO_DEFAULT_LED_PIN, is_on ? 1 : 0);
 }
