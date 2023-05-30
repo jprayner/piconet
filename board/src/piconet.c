@@ -17,7 +17,7 @@
 
 #define VERSION_MAJOR           2
 #define VERSION_MINOR           0
-#define VERSION_REV             14
+#define VERSION_REV             15
 #define VERSION_STR_MAXLEN      17
 
 #define TX_DATA_BUFFER_SZ       3500
@@ -154,19 +154,19 @@ int main() {
     stdio_init_all();
 
     if (!pool_init(&rx_buffer_pool, RX_DATA_BUFFER_SZ, QUEUE_SZ_EVENT)) {
-        printf("ERROR Failed to allocate memory for RX data buffers");
+        printf("ERROR Failed to allocate memory for RX data buffers\n");
         return 1;
     }
 
     b64_scout_buffer = malloc(B64_SCOUT_BUFFER_SZ);
     if (b64_scout_buffer == NULL) {
-        printf("ERROR Failed to allocate memory for base64 scout buffer");
+        printf("ERROR Failed to allocate memory for base64 scout buffer\n");
         return 1;
     }
 
     b64_data_buffer = malloc(B64_DATA_BUFFER_SZ);
     if (b64_data_buffer == NULL) {
-        printf("ERROR Failed to allocate memory for base64 data buffer");
+        printf("ERROR Failed to allocate memory for base64 data buffer\n");
         return 1;
     }
 

@@ -543,7 +543,7 @@ static bool _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_sta
     if (ack_frame.type != FRAME_TYPE_ACK
             || ack_frame.frame.src_station != from_station || ack_frame.frame.src_net != from_network
             || ack_frame.frame.dest_station != to_station || ack_frame.frame.dest_net != to_network) {
-        printf("ERROR [_wait_ack] unexpected frame! type %d from station %u to station %u\r",
+        printf("ERROR [_wait_ack] unexpected frame! type %d from station %u to station %u\n",
             ack_frame.type,
             ack_frame.frame.src_station,
             ack_frame.frame.dest_station);
@@ -566,7 +566,8 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
         adlc_irq_reset();
 
         // TODO: need a constant here
-        if (!_wait_frame_start(200)) {
+        if (!_wait_frame_start(2000)) {
+            printf("ERROR [_rx_data_for_scout] timed out - last error code=%u\n", data_frame_result.status);
             return _rx_result_for_error(ECONET_RX_ERROR_TIMEOUT);
         }
 
@@ -574,9 +575,6 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
         if (data_frame_result.status == FRAME_READ_OK) {
             break;
         }
-
-        printf("ERROR [_rx_data_for_scout] read frame failed code=%u", data_frame_result.status);
-        _abort_read();
     }
 
     t_frame_parse_result data_frame = _parse_frame(_rx_data_buffer, data_frame_result.bytes_read, false);
@@ -668,7 +666,7 @@ static econet_rx_result_t _handle_first_frame() {
 
     if (read_frame_result.status != FRAME_READ_OK) {
         printf("[_handle_first_frame] read failed code=%u - aborting", read_frame_result.status);
-        _clear_rx();
+        _abort_read();
         return _map_read_frame_result(read_frame_result.status);
     }
 
@@ -811,8 +809,9 @@ static econet_rx_result_t _map_read_frame_result(t_frame_read_status status) {
 }
 
 static void _abort_read(void) {
-    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE);
-    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_TX_RESET);
+    adlc_write_cr2(CR2_PRIO_STATUS_ENABLE | CR2_CLEAR_RX_STATUS | CR2_CLEAR_TX_STATUS | CR2_FLAG_IDLE | CR2_2_BYTE_TRANSFER);
+    adlc_write_cr1(CR1_RX_FRAME_DISCONTINUE | CR1_RIE | CR1_RX_RESET | CR1_TX_RESET);
+    adlc_write_cr1(CR1_RIE | CR1_TX_RESET);
 }
 
 static void _clear_rx(void) {
