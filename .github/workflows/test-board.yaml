@@ -12,7 +12,7 @@ jobs:
     name: Build
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/jprayner/piconet-build-board-image@sha256:13909ee0811b8753effa10ab04fd181530a4fc7a2b3297540f651b47736b01ef
+      image: ghcr.io/jprayner/piconet-build-board-image@sha256:latest
     steps:
     - name: Checkout
       uses: actions/checkout@v3
@@ -23,7 +23,7 @@ jobs:
       run: |
         export PICO_SDK_PATH=/pico-sdk
         cmake --no-warn-unused-cli -DCMAKE_EXPORT_COMPILE_COMMANDS:BOOL=TRUE -DCMAKE_BUILD_TYPE:STRING=Debug -S. -B./build
-        cmake --build ./build --config Debug --target piconet -j 12 --
+        cmake --build ./build --config Debug --target piconet --
     - name: Archive build products
       uses: actions/upload-artifact@v3
       with:
