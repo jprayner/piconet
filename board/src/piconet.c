@@ -146,8 +146,8 @@ void    _core1_loop(void);
 char*   _tx_error_to_str(econet_tx_result_t error);
 char*   _rx_error_to_str(econet_rx_error_t error);
 void    _read_command_input(void);
-char*   _encode_base64(char* output_buffer, const char* input, size_t len);
-size_t  _decode_base64(const char* input, char* output_buffer);
+char*   _encode_base64(char* output_buffer, const uint8_t* input, size_t len);
+size_t  _decode_base64(const char* input, uint8_t* output_buffer);
 void    _test_board(void);
 
 int main() {
@@ -217,7 +217,7 @@ void _core0_loop(void) {
                     printf("ERROR Failed to get RX data buffer - logic error\n");
                     break;
                 }
-
+ 
                 switch (event.rx_event_detail.type) {
                     case PICONET_RX_RESULT_MONITOR :
                         printf("MONITOR %s\n", _encode_base64(
@@ -254,6 +254,9 @@ void _core0_loop(void) {
                                 b64_data_buffer,
                                 buffer->data,
                                 event.rx_event_detail.data_len));
+                        break;
+                    default :
+                        // do nothing if no data or error (latter handled above)
                         break;
                 }
 
@@ -387,14 +390,14 @@ void _core1_loop(void) {
     }
 }
 
-char* _encode_base64(char* output_buffer, const char* input, size_t len) {
+char* _encode_base64(char* output_buffer, const uint8_t* input, size_t len) {
     // TODO: check for buffer overflow
     char* c = output_buffer;
-	int cnt = 0;
+	size_t cnt = 0;
 	base64_encodestate s;
 
 	base64_init_encodestate(&s);
-	cnt = base64_encode_block(input, len, c, &s);
+	cnt = base64_encode_block((const char *) input, len, c, &s);
 	c += cnt;
 	cnt = base64_encode_blockend(c, &s);
 	c += cnt;
@@ -403,13 +406,13 @@ char* _encode_base64(char* output_buffer, const char* input, size_t len) {
     return output_buffer;
 }
 
-size_t _decode_base64(const char* input, char* output_buffer) {
+size_t _decode_base64(const char* input, uint8_t* output_buffer) {
     if (input == NULL) {
         return 0;
     }
 
     // TODO: check for buffer overflow
-    char* c = output_buffer;
+    uint8_t* c = output_buffer;
     base64_decodestate s;    
     base64_init_decodestate(&s);
     return base64_decode_block(input, strlen(input), c, &s);

@@ -30,6 +30,8 @@ bool pool_init(pool_t *p, size_t buffer_size, uint buffer_count) {
 
     p->buffer_count++;
   }
+
+  return true;
 }
 
 void pool_destroy(pool_t *p) {

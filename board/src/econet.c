@@ -396,10 +396,7 @@ static t_frame_parse_result _parse_frame(uint8_t* buffer, size_t len, bool is_op
 }
 
 static tFrameWriteStatus _tx_frame(uint8_t* buffer, size_t len) {
-    static uint timeout_ms = 2000;
-	char tdra_flag;
-	int loopcount = 0;
-    int tdra_counter;
+    uint timeout_ms = 2000;
     uint sr1;
 
     uint32_t time_start_ms = time_ms();
@@ -554,20 +551,25 @@ static bool _wait_ack(uint8_t from_station, uint8_t from_network, uint8_t to_sta
 }
 
 static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) {
-    frame_type_t frame_type = scout_frame->type;
     tFrameWriteStatus scout_ack_result = _send_ack(scout_frame, NULL, 0);
     if (scout_ack_result != FRAME_WRITE_OK) {
-        printf("[_rx_data_for_scout] scout ack failed code=%u\n", scout_ack_result);
+        printf("ERROR [_rx_data_for_scout] scout ack failed code=%u\n", scout_ack_result);
         return _rx_result_for_error(ECONET_RX_ERROR_SCOUT_ACK);
     }
 
+    int num_fails = 0;
     t_frame_read_result data_frame_result;
     while (true) {
         adlc_irq_reset();
 
         // TODO: need a constant here
         if (!_wait_frame_start(2000)) {
-            printf("ERROR [_rx_data_for_scout] timed out - last error code=%u\n", data_frame_result.status);
+            if (num_fails > 0) {
+                printf("ERROR [_rx_data_for_scout] timed out waiting for data following scout ack - num failed reads=%d, last error code=%u\n", num_fails, data_frame_result.status);
+            }
+            else {
+                printf("ERROR [_rx_data_for_scout] timed out waiting for data following scout ack\n");
+            }
             return _rx_result_for_error(ECONET_RX_ERROR_TIMEOUT);
         }
 
@@ -575,13 +577,15 @@ static econet_rx_result_t _rx_data_for_scout(t_frame_parse_result* scout_frame) 
         if (data_frame_result.status == FRAME_READ_OK) {
             break;
         }
+
+        num_fails++;
     }
 
     t_frame_parse_result data_frame = _parse_frame(_rx_data_buffer, data_frame_result.bytes_read, false);
     if (data_frame.type != FRAME_TYPE_DATA) {
         printf("ERROR [_rx_data_for_scout] parse failed type=%u len=%u - aborting\n", data_frame.type, data_frame_result.bytes_read);
         _abort_read();
-        return _rx_result_for_error(PICONET_RX_RESULT_ERROR);
+        return _rx_result_for_error(ECONET_RX_ERROR_MISC);
     }
 
     tFrameWriteStatus data_ack_result = _send_ack(&data_frame, NULL, 0);
@@ -616,7 +620,7 @@ static econet_rx_result_t _handle_immediate_scout(t_frame_parse_result* immediat
 
         tFrameWriteStatus scout_ack_result = _send_ack(immediate_scout_frame, ack_extra_data, sizeof(ack_extra_data));
         if (scout_ack_result != FRAME_WRITE_OK) {
-            printf("[_handle_immediate_scout] scout ack failed code=%u\n", scout_ack_result);
+            printf("ERROR [_handle_immediate_scout] scout ack failed code=%u\n", scout_ack_result);
             return _rx_result_for_error(ECONET_RX_ERROR_SCOUT_ACK);
         }
 
@@ -665,7 +669,7 @@ static econet_rx_result_t _handle_first_frame() {
     t_frame_read_result read_frame_result = _read_frame(_rx_scout_buffer, _rx_scout_buffer_sz, _listen_addresses, sizeof(_listen_addresses), 2000);
 
     if (read_frame_result.status != FRAME_READ_OK) {
-        printf("[_handle_first_frame] read failed code=%u - aborting", read_frame_result.status);
+        printf("ERROR [_handle_first_frame] read failed code=%u - aborting\n", read_frame_result.status);
         _abort_read();
         return _map_read_frame_result(read_frame_result.status);
     }
@@ -680,10 +684,14 @@ static econet_rx_result_t _handle_first_frame() {
             _abort_read();
             return _handle_broadcast(&result);
         default :
-            printf("[_handle_first_frame] unexpected type=%u bytes_read=%u - aborting\n", result.type, read_frame_result.bytes_read);
+            printf("ERROR [_handle_first_frame] unexpected type=%u bytes_read=%u - aborting\n", result.type, read_frame_result.bytes_read);
             _abort_read();
             break;
     }
+
+    econet_rx_result_t retval;
+    retval.type = PICONET_RX_RESULT_NONE;
+    return retval;
 }
 
 static t_frame_read_result _read_frame(uint8_t* buffer, size_t buffer_len, uint8_t* addr, size_t addr_len, uint timeout_ms) {

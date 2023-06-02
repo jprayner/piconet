@@ -7,6 +7,7 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
+add_compile_options(-Wall)
 add_executable(piconet
     src/piconet.c
     src/econet.c

@@ -7,7 +7,7 @@ uint32_t time_ms(void) {
 }
 
 void hexdump(uint8_t *buffer, size_t len) {
-    int i;
+    size_t i;
     for (i = 0; i < len; i++) {
         printf("%02x ", buffer[i]);
     }
