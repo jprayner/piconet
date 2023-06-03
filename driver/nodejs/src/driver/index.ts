@@ -236,28 +236,31 @@ export const transmit = async (
     throw new Error('Data too long');
   }
 
-  if (typeof extraScoutData !== 'undefined') {
-    if (extraScoutData.length > config.maxScoutExtraDataLength) {
-      throw new Error('Extra scout data too long');
+  const queue = eventQueueCreate(event => event instanceof TxResultEvent);
+  try {
+    if (typeof extraScoutData !== 'undefined') {
+      if (extraScoutData.length > config.maxScoutExtraDataLength) {
+        throw new Error('Extra scout data too long');
+      }
+
+      await writeToPort(
+        `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
+          'base64',
+        )} ${extraScoutData.toString('base64')}\r`,
+      );
+    } else {
+      await writeToPort(
+        `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
+          'base64',
+        )}\r`,
+      );
     }
 
-    await writeToPort(
-      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
-        'base64',
-      )} ${extraScoutData.toString('base64')}\r`,
-    );
-  } else {
-    await writeToPort(
-      `TX ${station} ${network} ${controlByte} ${port} ${data.toString(
-        'base64',
-      )}\r`,
-    );
+    const result = await eventQueueWait(queue, 20000, 'TxResultEvent');
+    return result as TxResultEvent;
+  } finally {
+    eventQueueDestroy(queue);
   }
-
-  const result = await waitForEvent(event => {
-    return event instanceof TxResultEvent;
-  }, 20000);
-  return result as TxResultEvent;
 };
 
 /**
@@ -303,6 +306,9 @@ const fireListeners = (event: EconetEvent) => {
  * @param timeoutMs Maximum time to wait for a matching event in milliseconds. If no matching
  *                  event is found within this period then the promise is rejected.
  * @returns         The matching event.
+ * @deprecated      This function is not reliable as an event may be generated inbetween the
+ *                  stimulus and the resultant event. Use {@link eventQueueCreate} and
+ *                  {@link eventQueueWait} instead.
  */
 export const waitForEvent = async (
   matcher: EventMatcher,
@@ -373,12 +379,15 @@ export const eventQueueDestroy = (queue: EventQueue) => {
  *
  * If no matching event is found within the specified timeout then an error is thrown.
  *
- * @param queue The queue to wait on.
- * @param timeoutMs Maximum time to wait for a matching event in milliseconds.
+ * @param queue       The queue to wait on.
+ * @param timeoutMs   Maximum time to wait for a matching event in milliseconds.
+ * @param description Optional description of what is being waited for. This is used in the
+ *                    error message if the timeout expires.
  */
 export const eventQueueWait = async (
   queue: EventQueue,
   timeoutMs: number,
+  description?: string,
 ): Promise<EconetEvent> => {
   const startTime = Date.now();
   while (Date.now() - startTime < timeoutMs) {
@@ -389,7 +398,11 @@ export const eventQueueWait = async (
     await sleepMs(10);
   }
 
-  throw new Error(`No matching event found within ${timeoutMs}ms`);
+  throw new Error(
+    description
+      ? `Timed out after ${timeoutMs}ms waiting for ${description}`
+      : `No matching event found within ${timeoutMs}ms`,
+  );
 };
 
 /**
@@ -414,12 +427,14 @@ export const readStatus = async (): Promise<StatusEvent> => {
     throw new Error(`Cannot read status from device whilst in ${state} state`);
   }
 
-  await writeToPort('STATUS\r');
-  const result = await waitForEvent(
-    event => event instanceof StatusEvent,
-    2000,
-  );
-  return result as StatusEvent;
+  const queue = eventQueueCreate(event => event instanceof StatusEvent);
+  try {
+    await writeToPort('STATUS\r');
+    const result = await eventQueueWait(queue, 1000, 'STATUS response');
+    return result as StatusEvent;
+  } finally {
+    eventQueueDestroy(queue);
+  }
 };
 
 const handleData = (data: string) => {

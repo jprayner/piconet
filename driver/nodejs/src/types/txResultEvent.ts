@@ -37,4 +37,10 @@ export class TxResultEvent extends EconetEvent {
   ) {
     super();
   }
+
+  public toString() {
+    return `[${this.constructor.name} success=${
+      this.success ? 'true' : 'false'
+    } description='${this.description}']`;
+  }
 }

@@ -11,4 +11,8 @@ export class ErrorEvent {
      */
     public description: string,
   ) {}
+
+  public toString() {
+    return `[${this.constructor.name} description='${this.description}']`;
+  }
 }

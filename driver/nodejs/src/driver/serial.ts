@@ -25,7 +25,7 @@ export const openPort = async (
         return;
       }
 
-      const parser = port.pipe(new ReadlineParser({ delimiter: '\r\n' }));
+      const parser = port.pipe(new ReadlineParser({ delimiter: '\n' }));
       parser.on('data', data => {
         if (debug) {
           console.debug(data);

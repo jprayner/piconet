@@ -54,4 +54,12 @@ export class StatusEvent extends EconetEvent {
   ) {
     super();
   }
+
+  public toString() {
+    return `[${this.constructor.name} firmwareVersion=${
+      this.firmwareVersion
+    } econetStation=${this.econetStation} statusRegister1=${
+      this.statusRegister1
+    } rxMode=${RxMode[this.rxMode]}]`;
+  }
 }
