@@ -1,5 +1,7 @@
 # Piconet
 
+![piconet-1](https://github.com/jprayner/piconet/assets/909745/a108e9b2-3a48-400a-9255-e8b306070342)
+
 Piconet allows modern computers (MacOS, PC and Linux) to talk to Acorn Econet networks using a board which interfaces the ADF10 Econet module (BBC Master/Archimedes Econet board) to a Raspberry Pi Pico. The Pico can then be connected to your machine via USB.
 
 Piconet is theoretically capable of supporting anything you can dream up which runs over Econet: file transfer utilities, file servers, D&D servers etc.
@@ -17,16 +19,15 @@ This project provides the purple boxes in the above diagram: the hardware design
 
 This project is still under development. Currently:
 
-* The board currently only exists in prototype form. A circuit diagram is available [here](https://github.com/jprayner/piconet/tree/main/board). It is hoped that a prebuilt board will be available soon.
 * The only driver available today is based on Node.js. Contributions of drivers based on other languages are welcome (Python, Golang etc) — please get in touch if interested! It is also possible to write apps which communicate with the board directly over a serial connection. See the protocol documentation below.
 * Most development has been carried out on a Mac, although Windows and Linux have been tested too.
-* Interoperability testing has been carried out with Acorn Level 3 (BBC Micro) and Level 4 (Archimedes) fileservers only.
+* Interoperability testing has been carried out with Acorn Level 3 (BBC Micro) and Level 4 (Archimedes) fileservers only. User feedback on Filestores has been positive.
 
 It's still early days - expect weirdness!
 
 ## Getting started
 
-1. Acquire or [build the Piconet board](https://github.com/jprayner/piconet/blob/main/board/README.md)
+1. [Acquire or build the Piconet board](https://github.com/jprayner/piconet/blob/main/board/README.md)
 2. Download the `.uf2` image from the [releases page](https://github.com/jprayner/piconet/releases)
 3. Connect the Pico to your machine with a USB cable whilst holding down the button on the Pico board
 4. The Pico should show as a storage device: copy the `.uf2` image to it
