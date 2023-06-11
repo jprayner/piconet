@@ -8,9 +8,25 @@ The Piconet board is simply a couple of SN74LVC245 buffers doing conversion betw
 
 ![Schematic_piconet_2023-05-22](https://github.com/jprayner/piconet/assets/909745/1044894b-2a8c-4942-85b4-5a8e77e33147)
 
+## Pre-built board
+
+You can buy a prebuilt board from Ken Lowe for £15 + shipping here: https://stardot.org.uk/forums/viewtopic.php?f=3&t=26775&start=30
+
+Here's what it looks like (note that I made a special request for my Pico to be pluggable, it's usually soldered):
+
+![piconet-2](https://github.com/jprayner/piconet/assets/909745/b00d4f82-076d-44b9-92cf-06a30045ca9e)
+
+You'll need an ADF-10 (BBC Master/Archimedes Econet module) too, but he sells those as well if you don't have one spare.
+
+Here's what it looks like with the ADF-10 docked:
+
+![piconet-1](https://github.com/jprayner/piconet/assets/909745/a60054de-487a-4a5f-8356-2d7673b5e50a)
+
+Note that there are a few tweaks on Ken's boards vs. the prototype schematics below. He has an extra "data activity" LED on GP10, pull-up resistors on !ADLC and !IRQ, and smoothing capacitors. Either configuration works fine for me.
+
 ## Prototype
 
-It is hoped that a prebuilt board will be available for purchase soon but currently this exists only as a big ole mess of wires on a breadboard:
+Here's what Piconet looks like as a big ole mess of wires on a breadboard:
 
 ![breadboard](https://github.com/jprayner/piconet/assets/909745/f1472e97-d554-45cb-af7c-b933ff954a14)
 
@@ -24,9 +40,7 @@ I knocked up a separate board for the DIN connector:
 
 ### Hardware testing
 
-Before connecting the board to the USB of your computer, use a multimeter to make sure that you don't have a short between VCC and ground.
-
-Before connecting the board to an Econet module, it is recommended that you validate connections carefully to avoid frustration and potential damage to your Econet module! 
+Before connecting a prototype board to the USB port of your computer, use a multimeter to make sure that you don't have a short between VCC and ground. Before connecting it to an Econet module, it is recommended that you validate connections carefully to avoid frustration and potential damage to your Econet module!
 
 Flash the Pico with latest firmware as described in the [Getting started](https://github.com/jprayner/piconet#getting-started) guide.
 
