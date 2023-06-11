@@ -38,7 +38,7 @@
 
 #define CR2_PRIO_STATUS_ENABLE    1
 #define CR2_2_BYTE_TRANSFER       2
-#define CR2_FLAG_IDLE             4
+#define CR2_FLAG_FILL             4
 #define CR2_FRAME_COMPLETE        8
 #define CR2_TX_LAST_DATA          16
 #define CR2_CLEAR_RX_STATUS       32
